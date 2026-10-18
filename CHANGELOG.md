@@ -5,6 +5,15 @@ Formato: [vX.Y.Z] - AAAA-MM-DD
 
 ---
 
+## [v1.0.1] - 2026-10-18
+
+### Documentação
+- `CLAUDE.md` com as instruções do projeto: fluxo de salvar no GitHub ("salve"), comandos, arquivos principais e
+  regras essenciais do código
+- `.claude/launch.json` com o servidor local (http://localhost:5180/) para o preview do Claude
+
+---
+
 ## [v1.0.0] - 2026-10-18
 
 Primeira versão do app OCTA, construída em 5 etapas a partir de `ESPECIFICACAO.md`.
