@@ -1,0 +1,7 @@
+# Arquivos que o Google Drive cria em cada pasta
+desktop.ini
+
+# Mapas de depuração do build (o app usa só dist/app.js e dist/app.css)
+dist/*.map
+
+node_modules/

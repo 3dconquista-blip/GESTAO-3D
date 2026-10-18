@@ -1,0 +1,16 @@
+.venda-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+@media (min-width: 960px) { .venda-layout { grid-template-columns: minmax(0, 1.4fr) minmax(320px, 1fr); align-items: start; } .venda-lado { position: sticky; top: 12px; } }
+.venda-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.venda-produto { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 12px 8px; min-height: 150px; border: 1px solid var(--borda); border-radius: var(--raio); background: var(--superficie); cursor: pointer; font: inherit; text-align: center; box-shadow: var(--sombra); }
+.venda-produto:active { transform: scale(0.98); }
+.venda-produto.no-carrinho { border-color: var(--principal); box-shadow: 0 0 0 2px rgba(43, 74, 107, 0.2); }
+.venda-qtd { position: absolute; top: 6px; right: 6px; min-width: 26px; height: 26px; border-radius: 999px; background: var(--principal); color: #fff; font-weight: 800; display: flex; align-items: center; justify-content: center; padding: 0 6px; }
+.venda-nome { font-weight: 650; color: var(--marinho); font-size: 0.88rem; line-height: 1.2; }
+.venda-preco { font-weight: 800; color: var(--principal); }
+.venda-saldo { font-size: 0.75rem; color: var(--texto-3); }
+.venda-linha { display: flex; flex-direction: column; gap: 6px; padding-bottom: 10px; border-bottom: 1px dashed var(--borda); }
+.venda-linha:last-child { border-bottom: 0; padding-bottom: 0; }
+.venda-linha-topo { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.venda-linha-campos { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 8px; }
+.venda-desconto { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; }
+.venda-cancelada { text-decoration: line-through; color: var(--texto-3); }

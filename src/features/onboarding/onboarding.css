@@ -1,0 +1,29 @@
+.onb { min-height: 100vh; background: linear-gradient(180deg, var(--marinho) 0, var(--marinho) 180px, var(--fundo) 180px); padding: 20px 16px 40px; }
+.onb-topo { max-width: 760px; margin: 0 auto 20px; display: flex; align-items: center; gap: 14px; color: #fff; }
+.onb-topo h1 { color: #fff; }
+.onb-topo p { color: #c3d0dd; margin: 2px 0 0; }
+.onb-topo svg g { fill: #9db8d3; }
+.onb-corpo { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+.onb-exemplo { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-weight: 600; color: var(--marinho); }
+.onb-exemplo + .onb-exemplo { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--borda); }
+.onb-passos { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.onb-passos li { display: flex; align-items: center; gap: 8px; padding: 10px; border-radius: var(--raio-p); background: var(--superficie); border: 1px solid var(--borda); font-weight: 600; color: var(--texto-3); font-size: 0.88rem; }
+.onb-passos li.atual { border-color: var(--principal); color: var(--principal); }
+.onb-passos li.feito { color: var(--ok); }
+.onb-num { width: 26px; height: 26px; border-radius: 50%; background: var(--superficie-2); border: 1px solid var(--borda-forte); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.85rem; }
+.onb-passos li.atual .onb-num { background: var(--principal); color: #fff; border-color: var(--principal); }
+.onb-passos li.feito .onb-num { background: var(--ok-fundo); border-color: var(--ok); }
+.onb-item { border: 1px solid var(--borda); border-radius: var(--raio); padding: 12px; margin: 0; min-width: 0; background: var(--superficie-2); }
+.onb-item legend { font-weight: 700; color: var(--marinho); padding: 0 6px; display: flex; gap: 12px; align-items: center; }
+.onb-remover { border: 0; background: none; color: var(--ruim); font: inherit; font-size: 0.82rem; font-weight: 600; cursor: pointer; min-height: 32px; }
+.onb-calculado { min-height: var(--toque); display: flex; align-items: center; font-weight: 700; color: var(--marinho); }
+.onb-cor { display: flex; gap: 6px; }
+.onb-cor input[type='color'] { width: 48px; min-width: 48px; height: var(--toque); border: 1px solid var(--borda-forte); border-radius: 10px; padding: 3px; background: var(--superficie); }
+.onb-rodape { display: flex; justify-content: space-between; gap: 8px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--borda); }
+.onb-passos li span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 520px) {
+  .onb-passos { display: flex; }
+  .onb-passos li { padding: 8px; flex: 0 0 auto; }
+  .onb-passos li.atual { flex: 1 1 auto; min-width: 0; }
+  .onb-passos li:not(.atual) span:last-child { display: none; }
+}

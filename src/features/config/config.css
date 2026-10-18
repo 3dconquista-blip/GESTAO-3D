@@ -1,0 +1,21 @@
+.cfg-cor { display: flex; gap: 6px; }
+.cfg-cor input[type='color'] { width: 48px; min-width: 48px; height: var(--toque); border: 1px solid var(--borda-forte); border-radius: 10px; padding: 3px; background: var(--superficie); }
+.cfg-fixo { min-height: var(--toque); display: flex; align-items: center; font-weight: 700; color: var(--marinho); }
+.cfg-nota { font-size: 0.82rem; margin: 8px 0 0; }
+.cfg-destaque { padding: 10px 12px; border-radius: var(--raio-p); background: var(--principal-claro); color: var(--marinho); }
+.cfg-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.cfg-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 6px 6px 12px; border-radius: 999px; background: var(--principal-claro); color: var(--principal); font-weight: 650; font-size: 0.9rem; }
+.cfg-chip button { width: 28px; height: 28px; border-radius: 50%; border: 0; background: rgba(43, 74, 107, 0.12); color: var(--principal); font-size: 1.1rem; cursor: pointer; line-height: 1; }
+.cfg-categoria { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0; border-bottom: 1px dashed var(--borda); }
+.cfg-categoria:last-child { border-bottom: 0; }
+label.btn.disabled { opacity: 0.5; pointer-events: none; }
+
+/* Dados > Exportar CSV */
+.cfg-csv { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+@media (min-width: 640px) { .cfg-csv { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.cfg-csv-item { display: flex; align-items: center; gap: 10px; min-height: var(--toque); padding: 8px 12px; border: 1px solid var(--borda); border-radius: var(--raio-p); background: var(--superficie); color: var(--principal); font: inherit; text-align: left; cursor: pointer; }
+.cfg-csv-item:hover:not(:disabled) { border-color: var(--principal); background: var(--superficie-2); }
+.cfg-csv-item:disabled { opacity: 0.5; cursor: default; }
+.cfg-csv-item span { display: flex; flex-direction: column; min-width: 0; }
+.cfg-csv-item strong { color: var(--marinho); font-size: 0.92rem; }
+.cfg-csv-item small { color: var(--texto-3); font-size: 0.78rem; }

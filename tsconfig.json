@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "jsxImportSource": "preact",
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitReturns": true,
+    "types": [],
+    "paths": {
+      "preact": ["./vendor/preact/src/index.d.ts"],
+      "preact/hooks": ["./vendor/preact/hooks/src/index.d.ts"],
+      "preact/jsx-runtime": ["./vendor/preact/jsx-runtime/src/index.d.ts"]
+    }
+  },
+  "include": ["src"]
+}

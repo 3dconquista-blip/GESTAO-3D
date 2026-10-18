@@ -1,0 +1,16 @@
+{
+  "name": "octa",
+  "private": true,
+  "version": "1.0.0",
+  "description": "OCTA - gestão para negócio de impressão 3D (PWA)",
+  "type": "module",
+  "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/build.mjs --watch",
+    "check": "node scripts/check.mjs",
+    "test": "node --test --test-reporter=spec \"src/**/*.test.ts\"",
+    "serve": "node scripts/serve.mjs",
+    "verify": "node scripts/check.mjs && node --test \"src/**/*.test.ts\" && node scripts/build.mjs"
+  }
+}
