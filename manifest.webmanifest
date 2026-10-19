@@ -1,6 +1,6 @@
 {
-  "name": "OCTA — Gestão de impressão 3D",
-  "short_name": "OCTA",
+  "name": "3D gestão — impressão 3D",
+  "short_name": "3D gestão",
   "description": "Custos, estoque, parceiros, acertos e pedidos de impressão 3D.",
   "lang": "pt-BR",
   "start_url": "./",

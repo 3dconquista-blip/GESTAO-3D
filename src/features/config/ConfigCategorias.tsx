@@ -9,7 +9,7 @@ import { tentar } from './comum.tsx';
 export function ConfigCategorias() {
   const [nova, setNova] = useState('');
   const [editando, setEditando] = useState<{ atual: string; texto: string } | null>(null);
-  const uso = (c: string) => db.all('produtos').filter((p) => normalizarBusca(p.categoria) === normalizarBusca(c)).length;
+  const uso = (c: string) => db.all('produtos').filter((p) => !p.excluido && normalizarBusca(p.categoria) === normalizarBusca(c)).length;
 
   return (
     <Pagina titulo="Categorias" voltarPara="/config" largura="estreita">

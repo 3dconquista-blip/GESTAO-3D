@@ -330,7 +330,6 @@ function criarPedidoTx(t: Tx, dados: DadosPedido, eventoInicial = 'Orçamento cr
     descontoPct: dados.descontoPct ?? 0,
     sinalPct: dados.sinalPct ?? cfg.pedidos.sinalPct,
     pedidoMinimoCentavos: cfg.pedidos.pedidoMinimoCentavos,
-    impostoPct: cfg.custos.impostoPct,
     margemPct: cfg.custos.margemDesejadaPct,
     valorHoraModelagem: cfg.custos.valorHoraModelagem,
     arredondamento: cfg.custos.arredondamento,
@@ -390,7 +389,7 @@ export function criarPedidoDaCalculadora(dados: {
 
 /**
  * Altera um pedido ainda não entregue nem cancelado. Itens novos são recalculados com os custos
- * atuais; os parâmetros fotografados (imposto, margem, hora de modelagem, arredondamento, pedido
+ * atuais; os parâmetros fotografados (margem, hora de modelagem, arredondamento, pedido
  * mínimo) continuam os do orçamento. Pagamentos são mantidos. Se o total mudar, grava
  * "Valor alterado de R$ X para R$ Y". Um valor manual é mantido enquanto o valor calculado não mudar.
  */
@@ -471,7 +470,6 @@ export function previewTotalManual(
     ...lucroPedido({
       totalCentavos,
       freteCentavos: p.entrega.freteCentavos,
-      impostoPct: p.impostoPct,
       taxasCartaoCentavos: fin.taxasCartaoCentavos,
       custoProducao: p.custoProducao,
       modelagem: p.modelagemValor,

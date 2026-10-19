@@ -39,7 +39,6 @@ function montarExemploA(): Fixture {
         tarifaKwh: 1,
         valorHora: 25,
         taxaFalhaPct: 10,
-        impostoPct: 0,
         margemDesejadaPct: 50,
         arredondamento: 'noventa',
         taxaCartaoPct: 4,
@@ -363,8 +362,8 @@ describe('previaCusto — Exemplo A', () => {
     assert.equal(p.status, 'ok');
   });
 
-  it('imposto + margem ≥ 100% bloqueia a sugestão com explicação', () => {
-    db.tx((t) => t.config((c) => ({ ...c, custos: { ...c.custos, impostoPct: 50, margemDesejadaPct: 50 } })));
+  it('margem ≥ 100% bloqueia a sugestão com explicação', () => {
+    db.tx((t) => t.config((c) => ({ ...c, custos: { ...c.custos, margemDesejadaPct: 100 } })));
     const p = previaCusto(ficha());
     assert.match(p.erro ?? '', /100% ou mais/);
     assert.equal(p.etiquetaSugeridaCentavos, null);

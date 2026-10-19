@@ -60,7 +60,6 @@ const desempenhoMemo = memoPorChave((chave): DesempenhoParceiro | null => {
     expositores: db.all('expositores'),
     periodo: de && ate ? { de, ate } : undefined,
     limiteBaixoDesempenhoCentavos: db.config.parcerias?.limiteBaixoDesempenhoCentavos,
-    impostoPct: db.config.custos?.impostoPct ?? 0,
     saldoAtual: (produtoId) => saldoNoParceiro(produtoId, parceiroId),
     parceiros: db.all('parceiros'),
   });

@@ -14,6 +14,3 @@
 .inicio-ranking a { display: block; font-weight: 600; color: var(--marinho); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .inicio-ranking span { font-size: 0.82rem; color: var(--texto-3); font-variant-numeric: tabular-nums; }
 .inicio-ranking strong { color: var(--texto-2); }
-.inicio-mei { display: flex; flex-direction: column; gap: 8px; }
-.inicio-mei-topo { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
-.inicio-mei-topo strong { font-size: 1.2rem; color: var(--marinho); font-variant-numeric: tabular-nums; }

@@ -16,7 +16,6 @@
 // Perdas: movimentações 'perda' não estornadas (quantidade × custoUnit), expositores perdidos (custo, na
 // data perdidoEm) e materiais com movimento 'perda' (filamento: gramas ÷ 1000 × R$/kg). Falhas de
 // impressão NÃO são perdas: já estão no custo pela taxa de falha.
-// Impostos = receita × imposto % da configuração atual, arredondado por canal (e somado).
 // Dinheiro em centavos; custos somados em reais e convertidos para centavos só no total (metade para cima).
 import type {
   Acerto,
@@ -34,10 +33,9 @@ import type {
   Venda,
 } from '../data/types.ts';
 import type { Cents } from '../lib/money.ts';
-import { pctOfCents, roundTo, toCents } from '../lib/money.ts';
+import { roundTo, toCents } from '../lib/money.ts';
 import type { ISODate, Periodo } from '../lib/dates.ts';
 import { addMeses, diaDe, diffDias, entre, fimDoMes, mesDe, rotuloMes, ultimosMeses } from '../lib/dates.ts';
-import { formatBRL, formatPct } from '../lib/format.ts';
 import { situacaoFinanceira } from './pedidos.ts';
 import { idsEstornados } from './stock.ts';
 
@@ -65,7 +63,7 @@ export interface DadosRelatorio {
 }
 
 /** Parâmetros usados no resultado (um ParametrosCusto completo serve). */
-export type ParametrosRelatorio = Pick<ParametrosCusto, 'impostoPct' | 'custosFixosMensaisCentavos'>;
+export type ParametrosRelatorio = Pick<ParametrosCusto, 'custosFixosMensaisCentavos'>;
 
 /** Dados vazios (útil em testes e telas sem dados). */
 export function dadosVazios(): DadosRelatorio {
@@ -242,10 +240,9 @@ export interface Totais {
   taxasCentavos: Cents;
   /** Receita: o que fica com o dono. */
   receitaCentavos: Cents;
-  impostosCentavos: Cents;
   /** Custo dos produtos vendidos. */
   custoCentavos: Cents;
-  /** receita − impostos − custo (sem perdas e custos fixos). */
+  /** receita − custo (sem perdas e custos fixos). */
   lucroCentavos: Cents;
 }
 
@@ -280,8 +277,7 @@ function novoAcum(): Acum {
   return { quantidade: 0, unidades: 0, vendido: 0, taxas: 0, receita: 0, custoReais: 0 };
 }
 
-function fechar(a: Acum, impostoPct: number): Totais {
-  const impostos = pctOfCents(a.receita, impostoPct || 0);
+function fechar(a: Acum): Totais {
   const custo = centavos(a.custoReais);
   return {
     quantidade: a.quantidade,
@@ -289,9 +285,8 @@ function fechar(a: Acum, impostoPct: number): Totais {
     vendidoCentavos: a.vendido,
     taxasCentavos: a.taxas,
     receitaCentavos: a.receita,
-    impostosCentavos: impostos,
     custoCentavos: custo,
-    lucroCentavos: a.receita - impostos - custo,
+    lucroCentavos: a.receita - custo,
   };
 }
 
@@ -303,7 +298,6 @@ export function somarTotais(lista: Totais[]): Totais {
     vendidoCentavos: 0,
     taxasCentavos: 0,
     receitaCentavos: 0,
-    impostosCentavos: 0,
     custoCentavos: 0,
     lucroCentavos: 0,
   };
@@ -313,14 +307,13 @@ export function somarTotais(lista: Totais[]): Totais {
     t.vendidoCentavos += x.vendidoCentavos;
     t.taxasCentavos += x.taxasCentavos;
     t.receitaCentavos += x.receitaCentavos;
-    t.impostosCentavos += x.impostosCentavos;
     t.custoCentavos += x.custoCentavos;
     t.lucroCentavos += x.lucroCentavos;
   }
   return t;
 }
 
-function apurarCanais(dados: DadosRelatorio, p: Intervalo, impostoPct: number): VendasPorCanal {
+function apurarCanais(dados: DadosRelatorio, p: Intervalo): VendasPorCanal {
   // Venda direta, por canal de venda.
   const sub = new Map<string, Acum>();
   for (const c of CANAIS_VENDA) sub.set(c, novoAcum());
@@ -340,7 +333,7 @@ function apurarCanais(dados: DadosRelatorio, p: Intervalo, impostoPct: number): 
   const direta: LinhaCanalVenda[] = Array.from(sub, ([canal, a]) => ({
     canal: canal as CanalVenda,
     rotulo: ROTULO_CANAL_VENDA[canal] ?? canal,
-    ...fechar(a, impostoPct),
+    ...fechar(a),
   }));
 
   // Parceiros: sua parte dos acertos concluídos.
@@ -380,8 +373,8 @@ function apurarCanais(dados: DadosRelatorio, p: Intervalo, impostoPct: number): 
 
   const canais: LinhaCanal[] = [
     { canal: 'direta', rotulo: ROTULO_CANAL_RECEITA.direta, ...somarTotais(direta) },
-    { canal: 'parceiros', rotulo: ROTULO_CANAL_RECEITA.parceiros, ...fechar(parc, impostoPct) },
-    { canal: 'pedidos', rotulo: ROTULO_CANAL_RECEITA.pedidos, ...fechar(ped, impostoPct) },
+    { canal: 'parceiros', rotulo: ROTULO_CANAL_RECEITA.parceiros, ...fechar(parc) },
+    { canal: 'pedidos', rotulo: ROTULO_CANAL_RECEITA.pedidos, ...fechar(ped) },
   ];
   return { canais, direta, total: somarTotais(canais) };
 }
@@ -390,8 +383,8 @@ function apurarCanais(dados: DadosRelatorio, p: Intervalo, impostoPct: number): 
  * Vendas, receita e lucro por canal ("divisão por canal"): venda direta (aberta em presencial, WhatsApp,
  * Instagram e feira), parceiros e pedidos. O lucro aqui não desconta perdas nem custos fixos.
  */
-export function vendasPorCanal(dados: DadosRelatorio, periodo: Intervalo, custos: ParametrosRelatorio): VendasPorCanal {
-  return apurarCanais(dados, periodo, custos.impostoPct);
+export function vendasPorCanal(dados: DadosRelatorio, periodo: Intervalo): VendasPorCanal {
+  return apurarCanais(dados, periodo);
 }
 
 // ---------------------------------------------------------------- Perdas
@@ -508,30 +501,29 @@ export interface ResultadoPeriodo {
   /** "Total vendido nos parceiros" (bruto dos acertos). */
   totalVendidoParceirosCentavos: Cents;
   taxasCartaoCentavos: Cents;
-  impostosCentavos: Cents;
   /** Custo dos produtos vendidos. */
   cmvCentavos: Cents;
   perdasCentavos: Cents;
   perdas: Perdas;
   custosFixosCentavos: Cents;
-  /** receita − impostos − custo dos produtos vendidos − perdas − custos fixos. */
+  /** receita − custo dos produtos vendidos − perdas − custos fixos. */
   lucroCentavos: Cents;
   /** lucro ÷ receita (%), null sem receita. */
   margemPct: number | null;
 }
 
 /**
- * "Resultado do mês" para qualquer período: receita − impostos − custo dos produtos vendidos − perdas −
+ * "Resultado do mês" para qualquer período: receita − custo dos produtos vendidos − perdas −
  * custos fixos = lucro estimado. Custos fixos proporcionais em meses incompletos (custosFixosNoPeriodo).
  */
 export function resultadoPeriodo(dados: DadosRelatorio, periodo: Intervalo, custos: ParametrosRelatorio): ResultadoPeriodo {
-  const vc = apurarCanais(dados, periodo, custos.impostoPct);
+  const vc = apurarCanais(dados, periodo);
   const perdas = perdasPeriodo(dados, periodo);
   const fixos = custosFixosNoPeriodo(periodo, custos.custosFixosMensaisCentavos || 0);
   const t = vc.total;
   const receitaPorCanal = { direta: 0, parceiros: 0, pedidos: 0 } as Record<CanalReceita, Cents>;
   for (const c of vc.canais) receitaPorCanal[c.canal] = c.receitaCentavos;
-  const lucro = t.receitaCentavos - t.impostosCentavos - t.custoCentavos - perdas.totalCentavos - fixos;
+  const lucro = t.receitaCentavos - t.custoCentavos - perdas.totalCentavos - fixos;
   return {
     de: periodo.de,
     ate: periodo.ate,
@@ -542,7 +534,6 @@ export function resultadoPeriodo(dados: DadosRelatorio, periodo: Intervalo, cust
     vendidoCentavos: t.vendidoCentavos,
     totalVendidoParceirosCentavos: vc.canais[1].vendidoCentavos,
     taxasCartaoCentavos: t.taxasCentavos,
-    impostosCentavos: t.impostosCentavos,
     cmvCentavos: t.custoCentavos,
     perdasCentavos: perdas.totalCentavos,
     perdas,
@@ -621,7 +612,7 @@ export function dinheiroQueEntrou(pagamentos: Pagamento[], periodo: Intervalo, a
   };
 }
 
-// ---------------------------------------------------------------- Receita do ano e MEI
+// ---------------------------------------------------------------- Receita do ano
 
 export interface ReceitaAno {
   ano: number;
@@ -637,7 +628,7 @@ export interface ReceitaAno {
 export function receitaDoAno(dados: DadosRelatorio, ano: number): ReceitaAno {
   const de = `${ano}-01-01`;
   const ate = `${ano}-12-31`;
-  const vc = apurarCanais(dados, { de, ate }, 0);
+  const vc = apurarCanais(dados, { de, ate });
   const porCanal = { direta: 0, parceiros: 0, pedidos: 0 } as Record<CanalReceita, Cents>;
   for (const c of vc.canais) porCanal[c.canal] = c.receitaCentavos;
   return {
@@ -648,41 +639,6 @@ export function receitaDoAno(dados: DadosRelatorio, ano: number): ReceitaAno {
     vendidoCentavos: vc.total.vendidoCentavos,
     totalVendidoParceirosCentavos: vc.canais[1].vendidoCentavos,
     porCanal,
-  };
-}
-
-export type NivelMei = 'ok' | 'atencao' | 'acima';
-
-export interface AlertaMei {
-  receitaCentavos: Cents;
-  limiteCentavos: Cents;
-  /** receita ÷ limite (%). */
-  pct: number;
-  /** 'atencao' acima de 80% do limite; 'acima' quando passa do limite. */
-  nivel: NivelMei;
-  restanteCentavos: Cents;
-  mensagem: string | null;
-}
-
-/** Alerta do limite anual do MEI: amarelo quando a receita do ano passa de 80%, vermelho acima do limite. */
-export function alertaMei(receitaAnoCentavos: Cents, limiteCentavos: Cents): AlertaMei {
-  const pct = limiteCentavos > 0 ? (receitaAnoCentavos / limiteCentavos) * 100 : 0;
-  let nivel: NivelMei = 'ok';
-  let mensagem: string | null = null;
-  if (limiteCentavos > 0 && receitaAnoCentavos > limiteCentavos) {
-    nivel = 'acima';
-    mensagem = `A receita do ano passou do limite do MEI (${formatBRL(limiteCentavos)}). Procure seu contador.`;
-  } else if (limiteCentavos > 0 && receitaAnoCentavos * 100 > limiteCentavos * 80) {
-    nivel = 'atencao';
-    mensagem = `A receita do ano já chegou a ${formatPct(pct)} do limite do MEI (${formatBRL(limiteCentavos)}).`;
-  }
-  return {
-    receitaCentavos: receitaAnoCentavos,
-    limiteCentavos,
-    pct,
-    nivel,
-    restanteCentavos: Math.max(0, limiteCentavos - receitaAnoCentavos),
-    mensagem,
   };
 }
 
@@ -703,7 +659,7 @@ export interface LinhaProduto extends Totais {
  * sua parte de cada acerto são rateadas entre os itens pelo valor de cada linha, com soma exata.
  * Ordenado por unidades e receita.
  */
-export function vendasPorProduto(dados: DadosRelatorio, periodo: Intervalo, custos: ParametrosRelatorio): LinhaProduto[] {
+export function vendasPorProduto(dados: DadosRelatorio, periodo: Intervalo): LinhaProduto[] {
   type X = { a: Acum; direta: number; parceiros: number; pedidos: number };
   const acc = new Map<ID, X>();
   const pegar = (id: ID): X => {
@@ -749,7 +705,7 @@ export function vendasPorProduto(dados: DadosRelatorio, periodo: Intervalo, cust
   }
 
   const linhas = Array.from(acc, ([produtoId, x]): LinhaProduto => {
-    const t = fechar(x.a, custos.impostoPct);
+    const t = fechar(x.a);
     return {
       produtoId,
       ...t,
@@ -800,7 +756,7 @@ export interface LinhaParceiro extends Totais {
   aReceberCentavos: Cents;
   /** Custo dos expositores que estão no parceiro. */
   custoExpositoresCentavos: Cents;
-  /** Lucro acumulado no parceiro até o fim do período (sua parte − impostos − custo dos vendidos). */
+  /** Lucro acumulado no parceiro até o fim do período (sua parte − custo dos vendidos). */
   lucroAcumuladoCentavos: Cents;
   /** Retorno do expositor = lucro acumulado ÷ custo do expositor (%), null sem expositor. */
   retornoExpositorPct: number | null;
@@ -836,7 +792,7 @@ export function aReceberPorParceiro(acertos: Acerto[], pagamentos: Pagamento[], 
  * Vendas por parceiro no período (ranking por sua parte): acertos, peças, bruto, sua parte, lucro, giro,
  * a receber e retorno do expositor (lucro acumulado até o fim do período ÷ custo dos expositores).
  */
-export function vendasPorParceiro(dados: DadosRelatorio, periodo: Intervalo, custos: ParametrosRelatorio): LinhaParceiro[] {
+export function vendasPorParceiro(dados: DadosRelatorio, periodo: Intervalo): LinhaParceiro[] {
   type X = { a: Acum; esperado: number; pix: number };
   const acc = new Map<ID, X>();
   const pegar = (id: ID): X => {
@@ -875,8 +831,8 @@ export function vendasPorParceiro(dados: DadosRelatorio, periodo: Intervalo, cus
   const aReceber = aReceberPorParceiro(dados.acertos, dados.pagamentos, periodo.ate);
 
   const linhas = Array.from(acc, ([parceiroId, x]): LinhaParceiro => {
-    const t = fechar(x.a, custos.impostoPct);
-    const lucroAcum = fechar(acumulado.get(parceiroId) ?? novoAcum(), custos.impostoPct).lucroCentavos;
+    const t = fechar(x.a);
+    const lucroAcum = fechar(acumulado.get(parceiroId) ?? novoAcum()).lucroCentavos;
     const custoExpositores = custoExpo.get(parceiroId) || 0;
     return {
       parceiroId,

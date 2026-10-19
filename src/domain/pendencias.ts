@@ -7,7 +7,7 @@
 // - "Pagamentos abatem primeiro o mais antigo": o que já foi quitado (pagamentos e compensação entre
 //   acertos positivos e negativos) é distribuído do acerto mais antigo para o mais novo.
 // - Pagamento a mais fica como crédito do parceiro.
-// - Estorno de pagamento: novo Pagamento com `estornoDe` = id do original (convenção do OCTA: mesma direção e
+// - Estorno de pagamento: novo Pagamento com `estornoDe` = id do original (convenção do app: mesma direção e
 //   valor negativo). Aqui o estorno sempre anula |valor| na direção do original, qualquer que seja o sinal gravado.
 import type { Cents } from '../lib/money.ts';
 import type { ISODate } from '../lib/dates.ts';

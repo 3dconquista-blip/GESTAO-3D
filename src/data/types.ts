@@ -1,4 +1,4 @@
-// Modelo de dados do OCTA (seção 13 da especificação, adaptado).
+// Modelo de dados do 3D gestão (seção 13 da especificação, adaptado).
 // Convenções:
 // - Campos *Centavos / Cents: dinheiro de transação em centavos inteiros.
 // - Custos (custoMedio, custoUnit, valorPago...) são números em reais (até 4 casas).
@@ -52,13 +52,11 @@ export interface ParametrosCusto {
   valorHora: number; // R$/h do trabalho do dono
   valorHoraModelagem: number; // R$/h
   taxaFalhaPct: number;
-  impostoPct: number;
   margemDesejadaPct: number;
   margemMinimaPct: number;
   arredondamento: ModoArredondamento;
   taxaCartaoPct: number;
   custosFixosMensaisCentavos: Cents;
-  limiteMeiCentavos: Cents;
 }
 
 export interface Config extends Base {
@@ -134,7 +132,7 @@ export interface Material extends Base {
   custoMedio: number;
   /** Mínimo em gramas (filamento) ou unidades (insumo). */
   minimo: number;
-  /** Peso do carretel vazio em gramas (0 para refil). */
+  /** Obsoleto (versões antigas): o app usa sempre 170 g de carretel vazio (TARA_CARRETEL_G). */
   taraCarretelG?: number;
   arquivado: boolean;
 }
@@ -198,7 +196,12 @@ export interface Produto extends Base {
   origemModelo: 'proprio' | 'terceiro';
   linkModelo?: string;
   licencaVenda?: LicencaVenda;
+  /** Margem de lucro própria deste produto (%). Sem ela, vale a margem desejada da configuração. */
+  margemPct?: number;
   arquivado: boolean;
+  /** Excluído pelo dono: some do app, mas as movimentações e vendas antigas continuam apontando para ele. */
+  excluido?: boolean;
+  excluidoEm?: ISODate;
 }
 
 // ---------------------------------------------------------------- Estoque
@@ -232,7 +235,7 @@ export interface MovEstoque extends Base {
   destino: LocalId | null;
   tipo: TipoMovEstoque;
   motivo?: string;
-  refTipo?: 'venda' | 'acerto' | 'pedido' | 'producao' | 'instalacao' | 'reposicao' | 'recolhimento' | 'ajuste' | 'perda' | 'encerramento';
+  refTipo?: 'venda' | 'acerto' | 'pedido' | 'producao' | 'instalacao' | 'reposicao' | 'recolhimento' | 'ajuste' | 'perda' | 'encerramento' | 'exclusao';
   refId?: ID;
   /** Custo unitário do produto no momento (reais, 4 casas). */
   custoUnit: number;
@@ -421,7 +424,6 @@ export interface Pedido extends Base {
   sinalPct: number;
   pedidoMinimoCentavos: Cents;
   /** Parâmetros usados no orçamento (fotografia). */
-  impostoPct: number;
   margemPct: number;
   valorHoraModelagem: number;
   arredondamento: ModoArredondamento;
@@ -480,7 +482,7 @@ export interface Venda extends Base {
   taxaCentavos: Cents;
   /** Soma de quantidade × custo (reais). */
   custoTotal: number;
-  /** total − taxa − imposto − custo (centavos, estimado). */
+  /** total − taxa − custo (centavos, estimado). */
   lucroCentavos: Cents;
   cancelada?: boolean;
   canceladaEm?: ISODate;

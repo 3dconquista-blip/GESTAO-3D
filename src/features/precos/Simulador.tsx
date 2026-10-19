@@ -43,7 +43,12 @@ export function SimuladorAvulso({ query }: TelaProps) {
       </Cartao>
       {custo != null && custo > 0 && (
         <Cartao titulo="Preço por canal">
-          <SimuladorPreco key={`${modo}-${produtoId}-${custo}`} custoUnit={custo} precoInicial={modo === 'produto' ? produto?.precoEtiquetaCentavos : null} />
+          <SimuladorPreco
+            key={`${modo}-${produtoId}-${custo}`}
+            custoUnit={custo}
+            precoInicial={modo === 'produto' ? produto?.precoEtiquetaCentavos : null}
+            margemPct={modo === 'produto' ? produto?.margemPct : null}
+          />
         </Cartao>
       )}
     </Pagina>

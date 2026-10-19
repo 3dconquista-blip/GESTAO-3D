@@ -2,10 +2,10 @@
 import type { Cents } from '../lib/money.ts';
 import { round4 } from '../lib/money.ts';
 import { db } from './db.ts';
-import type { ID, LocalId, Material, Parceiro, Produto } from './types.ts';
+import type { ID, LocalId, Material, ParametrosCusto, Parceiro, Produto } from './types.ts';
 import { CASA, localParceiro } from './types.ts';
 import type { ComposicaoCusto, ContextoCusto, StatusMargem } from '../domain/pricing.ts';
-import { composicaoCusto, statusMargem } from '../domain/pricing.ts';
+import { composicaoCusto, custosComMargem, statusMargem } from '../domain/pricing.ts';
 import { calcularSaldos, calcularSaldosMateriais, resumoSaldos, type SaldosProduto } from '../domain/stock.ts';
 
 /** Memoiza o resultado enquanto db.version não mudar. */
@@ -55,8 +55,18 @@ export function custoProduto(produtoId: ID): number {
   return c ? round4(c.total) : 0;
 }
 
+/** Parâmetros de custo do produto: a margem própria dele (se tiver) no lugar da margem padrão. */
+export function custosDoProduto(p: Pick<Produto, 'margemPct'> | null | undefined): ParametrosCusto {
+  return custosComMargem(db.config.custos, p?.margemPct);
+}
+
+/** Margem do produto em %: a própria ou a padrão. */
+export function margemDoProduto(p: Pick<Produto, 'margemPct'> | null | undefined): number {
+  return p?.margemPct ?? db.config.custos.margemDesejadaPct;
+}
+
 export function statusMargemProduto(p: Produto): StatusMargem {
-  return statusMargem(p.precoEtiquetaCentavos, custoProduto(p.id), db.config.canais, db.config.custos);
+  return statusMargem(p.precoEtiquetaCentavos, custoProduto(p.id), db.config.canais, custosDoProduto(p));
 }
 
 // ---------------------------------------------------------------- Estoque
@@ -120,8 +130,11 @@ export function parceirosAtivos(): Parceiro[] {
     .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
 }
 
+/** Nome do produto; produto excluído aparece como "Nome (excluído)" no histórico. */
 export function nomeProduto(id: ID | undefined): string {
-  return (id && db.get('produtos', id)?.nome) || 'Produto removido';
+  const p = id ? db.get('produtos', id) : undefined;
+  if (!p) return 'Produto removido';
+  return p.excluido ? `${p.nome} (excluído)` : p.nome;
 }
 
 export function nomeMaterial(id: ID | undefined): string {

@@ -37,7 +37,7 @@ export function ExpositoresLista(_props: TelaProps) {
       alinhar: 'dir',
       render: (e) => {
         if (!e.parceiroId) return '—';
-        const r = retornoExpositor(e.parceiroId, db.all('acertos'), [e], db.config.custos.impostoPct);
+        const r = retornoExpositor(e.parceiroId, db.all('acertos'), [e]);
         return r.retorno != null ? formatPct(r.retorno * 100, 0) : '—';
       },
     },

@@ -1,4 +1,4 @@
-# Decisões do projeto OCTA
+# Decisões do projeto 3D gestão (antigo OCTA)
 
 Registro das escolhas feitas onde a especificação não define, ou deixa a critério da plataforma
 (regra da seção 1: "escolha a solução mais simples que funcione e registre a decisão").
@@ -188,3 +188,34 @@ Registro das escolhas feitas onde a especificação não define, ou deixa a crit
 72. **Backup**: o arquivo JSON leva configurações e todas as coleções; importar substitui tudo. O teste da Etapa 5
     exporta, zera o banco, importa e confere resultado de setembro e outubro, dinheiro que entrou, saldos de estoque
     e de material e todas as planilhas CSV.
+
+## Melhorias de 19/10/2026
+
+73. **Nome do app: "3D gestão"** (título, menu, assistente, manifesto, nomes de arquivo `3d-gestao-...`). Os
+    identificadores internos continuam `octa` (banco no aparelho, campo `app` do backup, cache) para não perder
+    dados nem invalidar backups antigos. Quem ainda tinha o nome padrão da empresa "OCTA" passa a ver "3D gestão".
+74. **Sem impostos e sem MEI.** O contador cuida disso: o imposto saiu da configuração, do preço sugerido
+    (preço = custo ÷ (1 − margem)), do orçamento de pedidos, do lucro da venda, do retorno do expositor e dos
+    relatórios (resultado = receita − custo dos produtos vendidos − perdas − custos fixos). O limite e o alerta do
+    MEI saíram do Início, dos Relatórios (a aba virou "Ano", com a receita mês a mês) e das Configurações. Isso
+    substitui as partes da especificação sobre imposto e MEI (6.1, 9.2, 11.1 e 11.2). Com imposto 0% (como nos
+    Exemplos A e D), os números não mudam.
+75. **Copiar produto (um clique)**: cria outro produto com tudo igual (modelo, cor, categoria, foto, ficha técnica,
+    preço, mínimo, margem, licença), nome `Nome "cópia"` (depois `"cópia 2"`, `"cópia 3"`...), código novo e estoque
+    zerado, e abre a edição da cópia. Fica no detalhe do produto e no ícone de copiar de cada linha da lista.
+76. **Excluir produto** (além de arquivar): o produto some de vez das listas, seleções, venda rápida e relatórios de
+    produtos, e não dá para reativar nem editar. O registro fica guardado com a data da exclusão, então
+    movimentações, vendas, acertos e pedidos antigos continuam mostrando o nome, com "(excluído)". Peças em Casa saem
+    com um ajuste "Produto excluído" (não é perda); o produto sai do mix dos parceiros. Não deixa excluir enquanto
+    houver peças em parceiros (recolher ou acertar antes) ou pedido em aberto com o produto.
+77. **Peso do carretel vazio fixo em 170 g** em "Pesei o carretel" (gramas restantes = balança − 170 g). O campo
+    saiu do cadastro de filamento; valores antigos gravados são ignorados.
+78. **Margem de lucro por produto**: campo opcional no produto (vazio = margem padrão da configuração). Os preços
+    sugeridos, a etiqueta sugerida, o simulador e a cor da margem do produto usam a margem dele. Se a margem do
+    produto for menor que a "margem mínima de alerta", a mínima desce junto para esse produto (senão o próprio preço
+    sugerido já nasceria vermelho). Pedidos personalizados continuam com a margem padrão.
+79. **Edição em massa no Estoque > Produtos**: "Editar em massa" liga a seleção (marcar um a um ou todos os
+    filtrados). Dá para mudar de uma vez a categoria, o estoque mínimo, a margem (definir ou voltar à padrão), o
+    preço de etiqueta (mesmo valor, reajuste em % arredondado como os preços sugeridos, ou o sugerido de cada
+    produto) e arquivar/reativar, com prévia dos preços; ou excluir os selecionados. É tudo ou nada: se um produto
+    não puder ser alterado, nenhum é.

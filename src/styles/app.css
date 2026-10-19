@@ -1,4 +1,4 @@
-/* OCTA — estilos base. Celular primeiro; computador a partir de 960px.
+/* 3D gestão — estilos base. Celular primeiro; computador a partir de 960px.
    Azul-aço #2B4A6B (principal), azul-marinho #18283A (títulos e barras), fundo claro neutro.
    Verde, amarelo e vermelho só para status. */
 
@@ -321,7 +321,7 @@ a.item-lista:hover, button.item-lista:hover { background: var(--superficie-2); }
 @keyframes girar { to { transform: rotate(360deg); } }
 
 /* ------------------------------------------------------------ Tabela */
-.tabela-wrap { min-width: 0; }
+.tabela-wrap { min-width: 0; max-width: 100%; overflow-x: auto; }
 .tabela { display: none; width: 100%; border-collapse: collapse; font-size: 0.9rem; }
 .tabela th { text-align: left; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--texto-3); font-weight: 700; padding: 8px 10px; border-bottom: 1px solid var(--borda); white-space: nowrap; }
 .tabela td { padding: 10px; border-bottom: 1px solid var(--borda); vertical-align: middle; }

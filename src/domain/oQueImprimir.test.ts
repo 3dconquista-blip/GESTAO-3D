@@ -111,7 +111,6 @@ function pedido(id: string, numero: number, etapa: Pedido['etapa'], itens: Pedid
     descontoPct: 0,
     sinalPct: 50,
     pedidoMinimoCentavos: 3000,
-    impostoPct: 0,
     margemPct: 50,
     valorHoraModelagem: 40,
     arredondamento: 'noventa',

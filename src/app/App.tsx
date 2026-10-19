@@ -1,6 +1,7 @@
 // Casca do app: menu lateral (computador), barra inferior (celular), botão "+", aviso de backup.
 import { Component, type ComponentChildren } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
+import { NOME_APP } from '../data/defaults.ts';
 import { useDb } from '../data/hooks.ts';
 import { useNuvem } from '../data/nuvem.ts';
 import { HostOverlays, Icon, Logo, Carregando, Botao } from '../ui/index.ts';
@@ -133,7 +134,7 @@ export function App() {
     window.scrollTo(0, 0);
   }, [local.caminho]);
 
-  if (!db.pronto) return <Carregando texto="Abrindo o OCTA..." />;
+  if (!db.pronto) return <Carregando texto="Abrindo o 3D gestão..." />;
   if (nuvem.configurada && !nuvem.logado) return <><Login /><HostOverlays /></>;
   if (!db.config.onboardingConcluido) return <><Onboarding /><HostOverlays /></>;
 
@@ -143,7 +144,7 @@ export function App() {
 
   return (
     <div class="app">
-      <MenuLateral secao={secao} empresa={db.config.empresa.nome || 'OCTA'} />
+      <MenuLateral secao={secao} empresa={db.config.empresa.nome || NOME_APP} />
       <main class="principal">
         <AvisoBackup />
         <LimiteErro chave={local.caminho}>

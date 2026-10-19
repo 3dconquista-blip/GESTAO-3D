@@ -6,8 +6,8 @@ import { useDb } from '../../data/hooks.ts';
 import { materiaisAtivos } from '../../data/selectors.ts';
 import type { Cents, LicencaVenda } from '../../data/types.ts';
 import type { FichaTecnica } from '../../domain/pricing.ts';
-import { etiquetaSugerida } from '../../domain/pricing.ts';
-import { formatBRL } from '../../lib/format.ts';
+import { custosComMargem, etiquetaSugerida } from '../../domain/pricing.ts';
+import { formatBRL, formatPct } from '../../lib/format.ts';
 import { salvarProduto } from '../../services/produtos.ts';
 import { Aviso, Botao, Campo, Cartao, Dinheiro, Escolha, Foto, Grade, Numero, Pagina, Segmentado, Texto, Vazio, avisar } from '../../ui/index.ts';
 import { ComposicaoCustoView, FichaTecnicaEditor, PrecosSugeridos, TabelaSimulador, fichaVazia, useComposicao } from '../precos/componentes.tsx';
@@ -23,6 +23,8 @@ interface Dados {
   linkModelo: string;
   licencaVenda: LicencaVenda;
   precoEtiquetaCentavos: Cents | null;
+  /** Margem própria do produto (%); null = margem padrão da configuração. */
+  margemPct: number | null;
 }
 
 export function ProdutoForm({ params }: TelaProps) {
@@ -39,16 +41,17 @@ export function ProdutoForm({ params }: TelaProps) {
     linkModelo: atual?.linkModelo ?? '',
     licencaVenda: atual?.licencaVenda ?? 'nao_sei',
     precoEtiquetaCentavos: atual?.precoEtiquetaCentavos ?? null,
+    margemPct: atual?.margemPct ?? null,
   }));
   const [ficha, setFicha] = useState<FichaTecnica>(() =>
     atual ? { mesas: atual.mesas.map((m) => ({ ...m, filamentos: m.filamentos.map((f) => ({ ...f })) })), componentes: atual.componentes.map((c) => ({ ...c })), maoDeObraMin: atual.maoDeObraMin } : fichaVazia(),
   );
   const comp = useComposicao(ficha);
 
-  if (params.id && !atual) {
+  if ((params.id && !atual) || atual?.excluido) {
     return (
       <Pagina titulo="Produto" voltarPara="/estoque/produtos">
-        <Vazio titulo="Produto não encontrado" />
+        <Vazio titulo={atual?.excluido ? 'Este produto foi excluído' : 'Produto não encontrado'} />
       </Pagina>
     );
   }
@@ -56,7 +59,8 @@ export function ProdutoForm({ params }: TelaProps) {
   const mudar = (patch: Partial<Dados>) => setD({ ...d, ...patch });
   const semImpressora = db.all('impressoras').filter((i) => i.ativa).length === 0;
   const semFilamento = materiaisAtivos('filamento').length === 0;
-  const sugerida = comp.total > 0 ? etiquetaSugerida(comp.total, db.config.canais, db.config.custos) : null;
+  const margemPadrao = db.config.custos.margemDesejadaPct;
+  const sugerida = comp.total > 0 ? etiquetaSugerida(comp.total, db.config.canais, custosComMargem(db.config.custos, d.margemPct)) : null;
   const precoUsado = d.precoEtiquetaCentavos ?? sugerida;
 
   const salvar = () => {
@@ -73,6 +77,7 @@ export function ProdutoForm({ params }: TelaProps) {
         linkModelo: d.origemModelo === 'terceiro' ? d.linkModelo : undefined,
         licencaVenda: d.origemModelo === 'terceiro' ? d.licencaVenda : undefined,
         precoEtiquetaCentavos: d.precoEtiquetaCentavos ?? undefined,
+        margemPct: d.margemPct,
         maoDeObraMin: ficha.maoDeObraMin,
         mesas: ficha.mesas,
         componentes: ficha.componentes,
@@ -168,8 +173,18 @@ export function ProdutoForm({ params }: TelaProps) {
           </Cartao>
           <Cartao titulo="Preço">
             <div class="pilha pilha-m">
+              <Campo
+                rotulo="Margem de lucro deste produto"
+                dica={
+                  d.margemPct == null
+                    ? `Vazio = margem padrão (${formatPct(margemPadrao, 0)}, em Configurações > Custos e preços)`
+                    : 'Os preços sugeridos e a cor da margem usam esta margem'
+                }
+              >
+                <Numero value={d.margemPct} onChange={(v) => mudar({ margemPct: v })} min={0} max={99} decimais={1} sufixo="%" placeholder={`${margemPadrao} (padrão)`} />
+              </Campo>
               {comp.total > 0 ? (
-                <PrecosSugeridos custoUnit={comp.total} onUsar={(c) => mudar({ precoEtiquetaCentavos: c })} />
+                <PrecosSugeridos custoUnit={comp.total} onUsar={(c) => mudar({ precoEtiquetaCentavos: c })} margemPct={d.margemPct} />
               ) : (
                 <p class="muted">Preencha a ficha técnica para ver o preço sugerido.</p>
               )}
@@ -179,7 +194,7 @@ export function ProdutoForm({ params }: TelaProps) {
               >
                 <Dinheiro value={d.precoEtiquetaCentavos} onChange={(v) => mudar({ precoEtiquetaCentavos: v })} placeholder={sugerida ? (sugerida / 100).toFixed(2).replace('.', ',') : '0,00'} />
               </Campo>
-              {precoUsado != null && precoUsado > 0 && comp.total > 0 && <TabelaSimulador custoUnit={comp.total} precoCentavos={precoUsado} />}
+              {precoUsado != null && precoUsado > 0 && comp.total > 0 && <TabelaSimulador custoUnit={comp.total} precoCentavos={precoUsado} margemPct={d.margemPct} />}
             </div>
           </Cartao>
         </div>

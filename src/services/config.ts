@@ -115,7 +115,6 @@ export function atualizarEmpresa(patch: Partial<DadosEmpresa>): DadosEmpresa {
 
 const PERCENTUAIS: [keyof ParametrosCusto, string][] = [
   ['taxaFalhaPct', 'Taxa de falha'],
-  ['impostoPct', 'Imposto sobre o que você recebe'],
   ['margemDesejadaPct', 'Margem desejada'],
   ['margemMinimaPct', 'Margem mínima de alerta'],
   ['taxaCartaoPct', 'Taxa do cartão'],
@@ -129,7 +128,6 @@ const VALORES: [keyof ParametrosCusto, string][] = [
 
 const CENTAVOS: [keyof ParametrosCusto, string][] = [
   ['custosFixosMensaisCentavos', 'Custos fixos mensais'],
-  ['limiteMeiCentavos', 'Limite anual do MEI'],
 ];
 
 /** Valida os parâmetros de custo; lança ErroNegocio com a explicação. Devolve avisos que não bloqueiam. */
@@ -166,7 +164,7 @@ function sincronizarCartao(canais: Canal[], taxaCartaoPct: number): Canal[] {
 }
 
 /**
- * Atualiza os parâmetros de custo (6.1). Percentuais de 0 a 100; imposto + margem desejada abaixo de 100%;
+ * Atualiza os parâmetros de custo (6.1). Percentuais de 0 a 100; margem desejada abaixo de 100%;
  * valores e tarifas não negativos. Margem mínima acima da desejada é permitida, com aviso.
  * Não mexe no preço de etiqueta dos produtos: avisa quantos ficaram com margem abaixo da mínima.
  */
@@ -428,13 +426,13 @@ export function renomearCategoria(atual: string, novo: string): { categorias: st
   });
 }
 
-/** Remove uma categoria. Recusa se algum produto (inclusive arquivado) a usa, ou se for a última. */
+/** Remove uma categoria. Recusa se algum produto (inclusive arquivado, menos os excluídos) a usa, ou se for a última. */
 export function removerCategoria(nome: string): string[] {
   return db.tx((t) => {
     const cat = acharCategoria(nome);
     if (!cat) throw new ErroNegocio('Categoria não encontrada.');
     const alvo = normalizarBusca(cat);
-    const emUso = t.all('produtos').filter((p) => normalizarBusca(p.categoria) === alvo).length;
+    const emUso = t.all('produtos').filter((p) => !p.excluido && normalizarBusca(p.categoria) === alvo).length;
     if (emUso) {
       throw new ErroNegocio(
         `A categoria "${cat}" está em ${plural(emUso, '1 produto', '{n} produtos')}. Troque a categoria ${plural(emUso, 'dele', 'deles')} antes de remover.`,

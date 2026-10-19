@@ -22,13 +22,13 @@ const movsDe = (materialId: string) => db.all('movMateriais').filter((m) => m.ma
 beforeEach(() => db.resetar());
 
 describe('cadastro de material', () => {
-  it('filamento: unidade g, mínimo padrão 250 g, carretel 0, nome a partir do material e da cor', () => {
+  it('filamento: unidade g, mínimo padrão 250 g, nome a partir do material e da cor', () => {
     const m = salvarMaterial({ tipo: 'filamento', corNome: 'Preto', custoMedio: 100 });
     assert.equal(m.nome, 'PLA Preto');
     assert.equal(m.material, 'PLA');
     assert.equal(m.unidade, 'g');
     assert.equal(m.minimo, 250);
-    assert.equal(m.taraCarretelG, 0);
+    assert.equal(m.taraCarretelG, undefined);
     assert.equal(m.custoMedio, 100);
     assert.equal(m.arquivado, false);
   });
@@ -47,15 +47,13 @@ describe('cadastro de material', () => {
   it('validações', () => {
     assert.throws(() => salvarMaterial({ tipo: 'insumo', nome: '  ' }), /nome/);
     assert.throws(() => salvarMaterial({ tipo: 'insumo', nome: 'Ímã', custoMedio: -1 }), /negativo/);
-    assert.throws(() => salvarMaterial({ tipo: 'filamento', nome: 'PLA', taraCarretelG: -5 }), /carretel/);
     assert.throws(() => salvarMaterial({ tipo: 'insumo', nome: 'Cola', minimo: -1 }), /mínimo/);
     assert.equal(db.all('materiais').length, 0);
   });
   it('editar mantém o que não foi informado; não troca o tipo depois de ter movimentos', () => {
-    const m = salvarMaterial({ tipo: 'filamento', nome: 'PLA Preto', custoMedio: 100, taraCarretelG: 250, marca: 'Bambu' });
+    const m = salvarMaterial({ tipo: 'filamento', nome: 'PLA Preto', custoMedio: 100, marca: 'Bambu' });
     const e = salvarMaterial({ id: m.id, tipo: 'filamento', minimo: 300 });
     assert.equal(e.nome, 'PLA Preto');
-    assert.equal(e.taraCarretelG, 250);
     assert.equal(e.marca, 'Bambu');
     assert.equal(e.minimo, 300);
     comprarMaterial({ materialId: m.id, quantidade: 1, valorTotalCentavos: 10000 });
@@ -123,26 +121,27 @@ describe('Compra de material', () => {
 });
 
 describe('Pesei o carretel', () => {
-  it('ajuste = (balança − carretel vazio) − saldo', () => {
-    const m = salvarMaterial({ tipo: 'filamento', nome: 'PLA Preto', taraCarretelG: 250 });
+  it('ajuste = (balança − carretel vazio de 170 g) − saldo', () => {
+    const m = salvarMaterial({ tipo: 'filamento', nome: 'PLA Preto' });
     comprarMaterial({ materialId: m.id, quantidade: 1, valorTotalCentavos: 10000 });
     const p = previaPesagem({ materialId: m.id, pesoBalancaG: 1100 });
-    assert.equal(p.gramasRestantes, 850);
-    assert.equal(p.delta, -150);
-    assert.equal(pesarCarretel({ materialId: m.id, pesoBalancaG: 1100, data: '2026-10-10' }), -150);
-    assert.equal(saldoMaterial(m.id), 850);
+    assert.equal(p.taraCarretelG, 170);
+    assert.equal(p.gramasRestantes, 930);
+    assert.equal(p.delta, -70);
+    assert.equal(pesarCarretel({ materialId: m.id, pesoBalancaG: 1100, data: '2026-10-10' }), -70);
+    assert.equal(saldoMaterial(m.id), 930);
     const mov = movsDe(m.id).find((x) => x.refTipo === 'pesagem');
     assert.equal(mov?.tipo, 'ajuste');
     assert.equal(mov?.motivo, 'Pesei o carretel');
     assert.equal(mov?.data, '2026-10-10');
   });
   it('sem diferença, nada é lançado; saldo negativo volta ao real', () => {
-    const m = salvarMaterial({ tipo: 'filamento', nome: 'PLA Rosa', taraCarretelG: 200 });
-    assert.equal(pesarCarretel({ materialId: m.id, pesoBalancaG: 200 }), 0);
+    const m = salvarMaterial({ tipo: 'filamento', nome: 'PLA Rosa' });
+    assert.equal(pesarCarretel({ materialId: m.id, pesoBalancaG: 170 }), 0);
     assert.equal(db.all('movMateriais').length, 0);
     ajustarMaterial({ materialId: m.id, quantidade: -30, motivo: 'teste' });
-    assert.equal(pesarCarretel({ materialId: m.id, pesoBalancaG: 500 }), 330);
-    assert.equal(saldoMaterial(m.id), 300);
+    assert.equal(pesarCarretel({ materialId: m.id, pesoBalancaG: 500 }), 360);
+    assert.equal(saldoMaterial(m.id), 330);
   });
   it('só filamento', () => {
     const m = salvarMaterial({ tipo: 'insumo', nome: 'Argola' });

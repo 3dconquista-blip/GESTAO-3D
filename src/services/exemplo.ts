@@ -26,7 +26,6 @@ export const PARAMETROS_EXEMPLO: Partial<ParametrosCusto> = {
   tarifaKwh: 1,
   valorHora: 25,
   taxaFalhaPct: 10,
-  impostoPct: 0,
   margemDesejadaPct: 50,
   arredondamento: 'noventa',
   taxaCartaoPct: 4,
@@ -104,7 +103,7 @@ export function carregarExemplo(): ResumoExemplo {
     ];
     const pla: Record<string, ID> = {};
     for (const [cor, hex] of cores) {
-      const m = salvarMaterial({ tipo: 'filamento', material: 'PLA', corNome: cor, corHex: hex, marca: 'Exemplo', custoMedio: 100, minimo: 250, taraCarretelG: 250 });
+      const m = salvarMaterial({ tipo: 'filamento', material: 'PLA', corNome: cor, corHex: hex, marca: 'Exemplo', custoMedio: 100, minimo: 250 });
       comprarMaterial({ materialId: m.id, quantidade: 1, valorTotalCentavos: 10000, data: DATA_COMPRA });
       pla[cor] = m.id;
     }

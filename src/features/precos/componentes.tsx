@@ -12,6 +12,7 @@ import {
   comissaoCanal,
   composicaoCusto,
   erroParametros,
+  custosComMargem,
   etiquetaSugerida,
   multiplicadorDireto,
   precoSugerido,
@@ -225,8 +226,10 @@ export function ComposicaoCustoView({ composicao, quantidade }: { composicao: Co
 
 // ---------------------------------------------------------------- Preços sugeridos
 
-export function PrecosSugeridos({ custoUnit, onUsar }: { custoUnit: number; onUsar?: (c: Cents) => void }) {
-  const { custos, canais } = db.config;
+/** Preços sugeridos por canal. Com `margemPct`, usa a margem própria do produto no lugar da padrão. */
+export function PrecosSugeridos({ custoUnit, onUsar, margemPct }: { custoUnit: number; onUsar?: (c: Cents) => void; margemPct?: number | null }) {
+  const { canais } = db.config;
+  const custos = custosComMargem(db.config.custos, margemPct);
   const erroGeral = erroParametros(custos);
   if (erroGeral) return <Aviso tom="ruim" titulo="Não dá para sugerir preço">{erroGeral}</Aviso>;
   const ativos = canaisAtivos(canais);
@@ -269,7 +272,7 @@ export function PrecosSugeridos({ custoUnit, onUsar }: { custoUnit: number; onUs
       )}
       {mult != null && (
         <small class="muted">
-          Margem desejada de {formatPct(custos.margemDesejadaPct, 0)}: equivale a vender por {formatNumero(mult, 1)}× o custo na venda direta.
+          Margem {margemPct != null ? 'deste produto' : 'desejada'} de {formatPct(custos.margemDesejadaPct, 0)}: equivale a vender por {formatNumero(mult, 1)}× o custo na venda direta.
         </small>
       )}
     </div>
@@ -278,8 +281,9 @@ export function PrecosSugeridos({ custoUnit, onUsar }: { custoUnit: number; onUs
 
 // ---------------------------------------------------------------- Simulador
 
-export function TabelaSimulador({ custoUnit, precoCentavos }: { custoUnit: number; precoCentavos: Cents }) {
-  const { custos, canais } = db.config;
+export function TabelaSimulador({ custoUnit, precoCentavos, margemPct }: { custoUnit: number; precoCentavos: Cents; margemPct?: number | null }) {
+  const { canais } = db.config;
+  const custos = custosComMargem(db.config.custos, margemPct);
   const sim = simular(precoCentavos, custoUnit, canais, custos);
   type L = (typeof sim.linhas)[number];
   const colunas: Coluna<L>[] = [
@@ -308,16 +312,26 @@ export function TabelaSimulador({ custoUnit, precoCentavos }: { custoUnit: numbe
 }
 
 /** Simulador completo: preços sugeridos + campo "Preço de etiqueta" + tabela por canal. */
-export function SimuladorPreco({ custoUnit, precoInicial, onUsarPreco }: { custoUnit: number; precoInicial?: Cents | null; onUsarPreco?: (c: Cents) => void }) {
-  const sugerida = etiquetaSugerida(custoUnit, db.config.canais, db.config.custos);
+export function SimuladorPreco({
+  custoUnit,
+  precoInicial,
+  onUsarPreco,
+  margemPct,
+}: {
+  custoUnit: number;
+  precoInicial?: Cents | null;
+  onUsarPreco?: (c: Cents) => void;
+  margemPct?: number | null;
+}) {
+  const sugerida = etiquetaSugerida(custoUnit, db.config.canais, custosComMargem(db.config.custos, margemPct));
   const [preco, setPreco] = useState<Cents | null>(precoInicial ?? sugerida ?? null);
   return (
     <div class="pilha pilha-g">
-      <PrecosSugeridos custoUnit={custoUnit} onUsar={(c) => setPreco(c)} />
+      <PrecosSugeridos custoUnit={custoUnit} onUsar={(c) => setPreco(c)} margemPct={margemPct} />
       <Campo rotulo="Preço de etiqueta">
         <Dinheiro value={preco} onChange={setPreco} />
       </Campo>
-      {preco != null && preco > 0 && <TabelaSimulador custoUnit={custoUnit} precoCentavos={preco} />}
+      {preco != null && preco > 0 && <TabelaSimulador custoUnit={custoUnit} precoCentavos={preco} margemPct={margemPct} />}
       {onUsarPreco && preco != null && preco > 0 && (
         <div>
           <Botao variante="primario" onClick={() => onUsarPreco(preco)}>

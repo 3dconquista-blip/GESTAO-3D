@@ -100,7 +100,7 @@ export function MaterialDetalhe({ params }: TelaProps) {
         <Indicador rotulo="Saldo" valor={textoSaldo(m, saldo)} tom={saldo < 0 ? 'ruim' : saldo < m.minimo ? 'atencao' : undefined} detalhe={<SeloMaterial m={m} saldo={saldo} />} />
         <Indicador rotulo="Custo médio" valor={textoCusto(m)} />
         <Indicador rotulo="Mínimo" valor={textoSaldo(m, m.minimo)} />
-        {m.tipo === 'filamento' ? <Indicador rotulo="Carretel vazio" valor={formatGramas(m.taraCarretelG ?? 0)} /> : <Indicador rotulo="Unidade" valor={m.unidade} />}
+        {m.tipo !== 'filamento' && <Indicador rotulo="Unidade" valor={m.unidade} />}
       </div>
 
       {saldo < 0 && m.tipo === 'filamento' && (

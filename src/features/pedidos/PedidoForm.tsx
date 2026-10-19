@@ -82,7 +82,6 @@ export function PedidoForm({ params, query }: TelaProps) {
     [itens, db.version],
   );
   const parametros = atual ?? {
-    impostoPct: cfg.custos.impostoPct,
     margemPct: cfg.custos.margemDesejadaPct,
     valorHoraModelagem: cfg.custos.valorHoraModelagem,
     urgenciaPct: cfg.pedidos.urgenciaPct,
@@ -93,7 +92,6 @@ export function PedidoForm({ params, query }: TelaProps) {
     custosItens: custos.map((c) => c.custoTotalExato),
     horasModelagem: horas ?? 0,
     valorHoraModelagem: parametros.valorHoraModelagem,
-    impostoPct: parametros.impostoPct,
     margemPct: parametros.margemPct,
     urgente,
     urgenciaPct: parametros.urgenciaPct,
@@ -105,7 +103,7 @@ export function PedidoForm({ params, query }: TelaProps) {
   });
   const totalFinal = totalManual ?? orc.totalCentavos;
   const taxas = atual ? situacaoFinanceira(atual, db.all('pagamentos')).taxasCartaoCentavos : 0;
-  const lucro = lucroPedido({ totalCentavos: totalFinal, freteCentavos: frete ?? 0, impostoPct: parametros.impostoPct, taxasCartaoCentavos: taxas, custoProducao: orc.custoProducao, modelagem: orc.modelagem });
+  const lucro = lucroPedido({ totalCentavos: totalFinal, freteCentavos: frete ?? 0, taxasCartaoCentavos: taxas, custoProducao: orc.custoProducao, modelagem: orc.modelagem });
   const qtdTotal = quantidadeTotalItens(itens);
   const sugestaoDesconto = descontoQtdSugerido(qtdTotal, cfg.pedidos);
   const reservas = reservasCatalogo(db.all('pedidos').filter((p) => p.id !== atual?.id));

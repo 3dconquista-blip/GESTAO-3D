@@ -161,7 +161,9 @@ function csvProdutos(): string {
     { titulo: 'Custo por peça (R$)', valor: (p) => custoProduto(p.id), decimais: 4 },
     { titulo: 'Estoque em Casa', valor: (p) => saldoCasa(p.id) },
     { titulo: 'Estoque mínimo', valor: (p) => p.estoqueMinimo },
-    { titulo: 'Arquivado', valor: (p) => p.arquivado },
+    { titulo: 'Margem própria (%)', valor: (p) => p.margemPct ?? null, decimais: 1 },
+    { titulo: 'Arquivado', valor: (p) => p.arquivado && !p.excluido },
+    { titulo: 'Excluído em', valor: (p) => p.excluidoEm ?? '', tipo: 'data' },
   ];
   return paraCSV(db.all('produtos').slice().sort((a, b) => a.nome.localeCompare(b.nome)), colunas);
 }

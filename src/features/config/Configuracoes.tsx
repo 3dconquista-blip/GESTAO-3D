@@ -14,7 +14,7 @@ import './config.css';
 
 export const SECOES = [
   { id: 'empresa', rotulo: 'Empresa', icone: 'loja', texto: 'Nome, logo, WhatsApp, chave PIX e política de cancelamento' },
-  { id: 'custos', rotulo: 'Custos e preços', icone: 'dinheiro', texto: 'Energia, sua hora, falhas, imposto, margem e arredondamento' },
+  { id: 'custos', rotulo: 'Custos e preços', icone: 'dinheiro', texto: 'Energia, sua hora, falhas, margem e arredondamento' },
   { id: 'canais', rotulo: 'Canais de venda', icone: 'etiqueta', texto: 'Comissão de cada canal (PIX, cartão, parceiros, marketplace)' },
   { id: 'impressoras', rotulo: 'Impressoras', icone: 'impressora', texto: 'Valor pago, vida útil, potência e manutenção' },
   { id: 'parcerias', rotulo: 'Parcerias', icone: 'parceiros', texto: 'Divisões, frequência do acerto e avisos' },

@@ -18,7 +18,7 @@ export function MaterialForm({ params, query }: TelaProps) {
       ? { ...atual }
       : (query.get('tipo') as Material['tipo']) === 'insumo'
         ? { tipo: 'insumo', nome: '', unidade: 'un', custoMedio: 0, minimo: 0, saldoInicial: 0 }
-        : { tipo: 'filamento', material: 'PLA', corNome: '', corHex: '#1F1F1F', custoMedio: 100, minimo: db.config.estoque.minimoFilamentoPadraoG, taraCarretelG: 0, saldoInicial: 0 },
+        : { tipo: 'filamento', material: 'PLA', corNome: '', corHex: '#1F1F1F', custoMedio: 100, minimo: db.config.estoque.minimoFilamentoPadraoG, saldoInicial: 0 },
   );
   if (params.id && !atual) {
     return (
@@ -53,7 +53,7 @@ export function MaterialForm({ params, query }: TelaProps) {
                 setD(
                   tipo === 'insumo'
                     ? { tipo: 'insumo', nome: '', unidade: 'un', custoMedio: 0, minimo: 0, saldoInicial: 0 }
-                    : { tipo: 'filamento', material: 'PLA', corNome: '', corHex: '#1F1F1F', custoMedio: 100, minimo: db.config.estoque.minimoFilamentoPadraoG, taraCarretelG: 0, saldoInicial: 0 },
+                    : { tipo: 'filamento', material: 'PLA', corNome: '', corHex: '#1F1F1F', custoMedio: 100, minimo: db.config.estoque.minimoFilamentoPadraoG, saldoInicial: 0 },
                 )
               }
               opcoes={[
@@ -86,9 +86,6 @@ export function MaterialForm({ params, query }: TelaProps) {
                 </Campo>
                 <Campo rotulo="Mínimo" dica="Abaixo disso aparece alerta">
                   <Numero value={d.minimo} onChange={(v) => mudar({ minimo: v ?? 0 })} decimais={0} min={0} sufixo="g" />
-                </Campo>
-                <Campo rotulo="Peso do carretel vazio" dica="Varia por marca; 0 para refil. Usado em &quot;Pesei o carretel&quot;">
-                  <Numero value={d.taraCarretelG} onChange={(v) => mudar({ taraCarretelG: v ?? 0 })} decimais={0} min={0} sufixo="g" />
                 </Campo>
                 {!atual && (
                   <Campo rotulo="Quanto tem agora" dica="Vira um ajuste de saldo inicial">

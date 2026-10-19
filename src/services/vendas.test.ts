@@ -14,7 +14,7 @@ function exemploA(): void {
   db.tx((t) => {
     t.config((c) => ({
       ...c,
-      custos: { ...c.custos, tarifaKwh: 1, valorHora: 25, taxaFalhaPct: 10, impostoPct: 0, margemDesejadaPct: 50, arredondamento: 'noventa', taxaCartaoPct: 4 },
+      custos: { ...c.custos, tarifaKwh: 1, valorHora: 25, taxaFalhaPct: 10, margemDesejadaPct: 50, arredondamento: 'noventa', taxaCartaoPct: 4 },
     }));
     const imp = t.insert('impressoras', { nome: 'A1 mini', modelo: 'A1 mini', valorPago: 2000, vidaUtilH: 4000, potenciaW: 80, manutencaoH: 0.1, ativa: true });
     const pla = t.insert('materiais', { tipo: 'filamento', nome: 'PLA Preto', material: 'PLA', unidade: 'g', custoMedio: 100, minimo: 250, taraCarretelG: 0, arquivado: false });
@@ -50,7 +50,6 @@ describe('calcularVenda', () => {
     assert.equal(c.descontoCentavos, 0);
     assert.equal(c.totalCentavos, 3000);
     assert.equal(c.taxaCentavos, 0);
-    assert.equal(c.impostoCentavos, 0);
     assert.equal(c.custoTotal, 4.9746);
     assert.equal(c.lucroCentavos, 2503);
     assert.deepEqual(c.faltas, []);
@@ -76,12 +75,6 @@ describe('calcularVenda', () => {
     assert.equal(tudo.descontoCentavos, 2370);
     assert.equal(tudo.totalCentavos, 0);
     assert.throws(() => calcularVenda({ itens, forma: 'pix', desconto: { tipo: 'reais', valor: -1 } }), /negativo/);
-  });
-  it('imposto sobre o que você recebe (total − taxa)', () => {
-    db.tx((t) => t.config((c) => ({ ...c, custos: { ...c.custos, impostoPct: 6 } })));
-    const c = calcularVenda({ itens: dois(), forma: 'cartao', desconto: { tipo: 'pct', valor: 10 } });
-    assert.equal(c.impostoCentavos, 156); // 6% de 25,92 = 1,5552
-    assert.equal(c.lucroCentavos, 2700 - 108 - 156 - 497);
   });
   it('faltas em Casa (soma o mesmo produto em linhas diferentes)', () => {
     const c = calcularVenda({

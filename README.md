@@ -1,6 +1,6 @@
-# GESTÃO 3D
+# 3D gestão
 
-App **OCTA**: gestão de um negócio de impressão 3D feito por uma pessoa só. É um PWA em português, pensado primeiro
+Repositório GESTÃO 3D. App **3D gestão** (antigo OCTA): gestão de um negócio de impressão 3D feito por uma pessoa só. É um PWA em português, pensado primeiro
 para o celular (visitas aos parceiros) e que aproveita a tela larga no computador.
 
 Responde em segundos:
@@ -15,11 +15,11 @@ Responde em segundos:
 
 | Área | Recursos |
 |---|---|
-| Precificação | Parâmetros de custo, impressoras, materiais, ficha técnica com mesas e filamentos, custo por peça, preço por canal, simulador e calculadora rápida |
-| Estoque e produção | Casa e expositores, movimentações, compra com custo médio, "pesei o carretel", registrar produção, venda rápida, alertas e "O que imprimir" |
+| Precificação | Parâmetros de custo, impressoras, materiais, ficha técnica com mesas e filamentos, custo por peça, margem de lucro por produto, preço por canal, simulador e calculadora rápida |
+| Estoque e produção | Casa e expositores, movimentações, compra com custo médio, "pesei o carretel" (carretel vazio de 170 g), registrar produção, venda rápida, alertas, "O que imprimir", copiar produto com um clique, excluir produto (o histórico fica) e edição em massa |
 | Parceiros (consignação) | Expositores, mix, instalação, reposição, visita de acerto em 5 passos com rascunho salvo, comprovante por WhatsApp, pendências, agenda, desempenho e termo de consignação |
 | Pedidos e clientes | Orçamento, Kanban de etapas, sinal e saldo, cancelamento, mensagens de WhatsApp, ficha do cliente |
-| Início e relatórios | Painel do dia e do mês, relatórios por período (canal, produto, parceiro, materiais, dinheiro que entrou, receita do ano e limite do MEI), CSV para o Excel |
+| Início e relatórios | Painel do dia e do mês, relatórios por período (canal, produto, parceiro, materiais, dinheiro que entrou, receita do ano), CSV para o Excel. Sem impostos nem MEI: isso fica com o contador |
 | Dados | Backup e restauração em JSON, exportação CSV, dados de exemplo, sincronização opcional na nuvem (Supabase) |
 
 Dinheiro é sempre calculado em centavos; os exemplos A a G da especificação batem ao centavo e estão cobertos por

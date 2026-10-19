@@ -1,4 +1,4 @@
-# OCTA — convenções do código
+# 3D gestão — convenções do código
 
 Leia antes de mexer no código. A especificação completa está em `ESPECIFICACAO.md`;
 decisões tomadas onde a especificação não define estão em `DECISOES.md`.

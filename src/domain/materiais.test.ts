@@ -56,6 +56,7 @@ describe('compra de material', () => {
 
 describe('pesagem e status', () => {
   it('Pesei o carretel: balança − carretel vazio', () => {
+    assert.equal(gramasRestantes(1100), 930); // carretel vazio padrão de 170 g
     assert.equal(gramasRestantes(1100, 250), 850);
     assert.equal(gramasRestantes(612.4, 0), 612.4);
     assert.equal(gramasRestantes(200, 250), 0);

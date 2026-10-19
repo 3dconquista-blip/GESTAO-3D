@@ -101,7 +101,7 @@ export function paraCSV<T>(linhas: readonly T[], colunas: readonly ColunaCSV<T>[
   return BOM_UTF8 + [cabecalho, ...corpo].map((linha) => linha + QUEBRA_CSV).join('');
 }
 
-/** Nome de arquivo seguro: nomeArquivoCSV('Vendas por canal', '2026-10-16') -> 'octa-vendas-por-canal-2026-10-16.csv' */
+/** Nome de arquivo seguro: nomeArquivoCSV('Vendas por canal', '2026-10-16') -> '3d-gestao-vendas-por-canal-2026-10-16.csv' */
 export function nomeArquivoCSV(nome: string, data: ISODate): string {
   const slug = nome
     .normalize('NFD')
@@ -109,5 +109,5 @@ export function nomeArquivoCSV(nome: string, data: ISODate): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
-  return `octa-${slug || 'dados'}-${data}.csv`;
+  return `3d-gestao-${slug || 'dados'}-${data}.csv`;
 }

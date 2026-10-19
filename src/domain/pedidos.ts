@@ -111,7 +111,6 @@ export interface EntradaOrcamento {
   custosItens: number[];
   horasModelagem: number;
   valorHoraModelagem: number;
-  impostoPct: number;
   margemPct: number;
   urgente: boolean;
   urgenciaPct: number;
@@ -125,7 +124,7 @@ export interface EntradaOrcamento {
 export interface Orcamento {
   /** Soma do custo dos itens (reais, 4 casas). */
   custoProducao: number;
-  /** custo ÷ (1 − imposto − margem) (reais, 4 casas). */
+  /** custo ÷ (1 − margem) (reais, 4 casas). */
   precoProducao: number;
   /** horas × valor hora de modelagem, sem margem (reais, 4 casas). */
   modelagem: number;
@@ -141,19 +140,19 @@ export interface Orcamento {
   totalCentavos: Cents;
   /** total × sinal%, arredondado ao centavo. */
   sinalCentavos: Cents;
-  /** Parâmetros impossíveis (imposto + margem ≥ 100%). Os valores vêm zerados. */
+  /** Parâmetros impossíveis (margem ≥ 100%). Os valores vêm zerados. */
   erro?: string;
 }
 
 /**
  * Orçamento do pedido (seção 9.2):
- * preço_produção = custo ÷ (1 − imposto − margem); modelagem sem margem;
+ * preço_produção = custo ÷ (1 − margem); modelagem sem margem;
  * total = arredondar(máximo(pedido_mínimo, subtotal × (1 + urgência% − desconto%))) + frete;
  * sinal = total × sinal%.
  */
 export function calcularOrcamento(e: EntradaOrcamento): Orcamento {
   const custo = e.custosItens.reduce((s, c) => s + (c || 0), 0);
-  const den = 1 - (e.impostoPct || 0) / 100 - (e.margemPct || 0) / 100;
+  const den = 1 - (e.margemPct || 0) / 100;
   if (den <= 0) {
     return {
       custoProducao: round4(custo),
@@ -165,7 +164,7 @@ export function calcularOrcamento(e: EntradaOrcamento): Orcamento {
       totalSemFreteCentavos: 0,
       totalCentavos: 0,
       sinalCentavos: 0,
-      erro: 'Imposto + margem desejada chegam a 100% ou mais. Assim nenhum preço cobre o custo. Reduza a margem ou o imposto.',
+      erro: 'A margem desejada chega a 100% ou mais. Assim nenhum preço cobre o custo. Reduza a margem.',
     };
   }
   const preco = custo / den;
@@ -199,7 +198,6 @@ export function entradaOrcamentoDoPedido(
     custosItens,
     horasModelagem: p.horasModelagem,
     valorHoraModelagem: p.valorHoraModelagem,
-    impostoPct: p.impostoPct,
     margemPct: p.margemPct,
     urgente: p.urgente,
     urgenciaPct: p.urgenciaPct,
@@ -231,7 +229,6 @@ export function quantidadeTotalItens(itens: { quantidade: number }[]): number {
 export interface EntradaLucro {
   totalCentavos: Cents;
   freteCentavos: Cents;
-  impostoPct: number;
   taxasCartaoCentavos: Cents;
   /** Reais. */
   custoProducao: number;
@@ -246,13 +243,12 @@ export interface LucroPedido {
 }
 
 /**
- * lucro_pedido = (total − frete) × (1 − imposto) − taxas de cartão − custo_produção − modelagem.
+ * lucro_pedido = (total − frete) − taxas de cartão − custo_produção − modelagem.
  * Margem sobre o que o pedido rende sem o frete (frete é repasse). Exemplo D: R$ 39,06 (33,1%).
  */
 export function lucroPedido(e: EntradaLucro): LucroPedido {
   const receita = toReais((e.totalCentavos || 0) - (e.freteCentavos || 0));
-  const lucro =
-    receita * (1 - (e.impostoPct || 0) / 100) - toReais(e.taxasCartaoCentavos || 0) - (e.custoProducao || 0) - (e.modelagem || 0);
+  const lucro = receita - toReais(e.taxasCartaoCentavos || 0) - (e.custoProducao || 0) - (e.modelagem || 0);
   return { lucroCentavos: toCents(lucro), margemPct: receita > 0 ? (lucro / receita) * 100 : Number.NaN };
 }
 
@@ -261,7 +257,6 @@ export function resultadoPedido(p: Pedido, pagamentos: Pagamento[], totalCentavo
   return lucroPedido({
     totalCentavos,
     freteCentavos: p.entrega.freteCentavos,
-    impostoPct: p.impostoPct,
     taxasCartaoCentavos: situacaoFinanceira(p, pagamentos).taxasCartaoCentavos,
     custoProducao: p.custoProducao,
     modelagem: p.modelagemValor,

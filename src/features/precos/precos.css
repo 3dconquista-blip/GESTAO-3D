@@ -2,13 +2,15 @@
 .ficha-mesa { border: 1px solid var(--borda); border-radius: var(--raio); padding: 12px; margin: 0; display: flex; flex-direction: column; gap: 12px; min-width: 0; background: var(--superficie-2); }
 .ficha-mesa legend { font-weight: 700; color: var(--marinho); padding: 0 6px; display: flex; align-items: center; gap: 10px; }
 .ficha-remover { border: 0; background: none; color: var(--ruim); font: inherit; font-size: 0.82rem; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; min-height: 32px; }
+/* Os campos da mesa quebram pela largura do cartão (no formulário de produto ele ocupa só meia tela). */
+.ficha-mesa .campos-3 { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
 .ficha-tempo { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .ficha-sub { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
 /* Celular: material numa linha, quantidade + remover na de baixo. Telas maiores: tudo numa linha. */
 .ficha-item { display: grid; grid-template-columns: minmax(0, 1fr) 36px; gap: 6px; align-items: center; width: 100%; padding-bottom: 6px; border-bottom: 1px dashed var(--borda); }
 .ficha-item > :first-child { grid-column: 1 / -1; }
 @media (min-width: 560px) {
-  .ficha-item { grid-template-columns: minmax(0, 1fr) 170px 36px; padding-bottom: 0; border-bottom: 0; }
+  .ficha-item { grid-template-columns: minmax(0, 1fr) minmax(110px, 150px) 36px; padding-bottom: 0; border-bottom: 0; }
   .ficha-item > :first-child { grid-column: auto; }
 }
 .precos-sugeridos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }

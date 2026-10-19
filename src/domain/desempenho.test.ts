@@ -181,7 +181,7 @@ describe('Exemplo B — desempenho do acerto', () => {
 });
 
 describe('retornoExpositor', () => {
-  it('desconta imposto, avarias e faltas abonadas pelo custo do momento', () => {
+  it('desconta avarias e faltas abonadas pelo custo do momento', () => {
     const c = acerto('c1', 'beta', '2026-09-10', '2026-10-10', 20, [
       item('kr', 12, 5, 1500, 2, 8, { avariados: 1 }),
       item('dp', 3, 1, 3500, 10, 2, { faltasAbonadas: 1 }),
@@ -189,11 +189,11 @@ describe('retornoExpositor', () => {
     // Vendidos 7 e 1: bruto 140,00, parceiro 28,00, sua parte 112,00 (Exemplo C).
     assert.equal(c.brutoCentavos, 14000);
     assert.equal(c.suaParteCentavos, 11200);
-    // Custo: (7 + 1) × 2,00 + (1 + 1) × 10,00 = 36,00. Imposto 6% de 112,00 = 6,72.
-    const r = retornoExpositor('beta', [c], [expositor('EXP-02', 'beta', 5000), expositor('EXP-03', null, 7000)], 6);
-    assert.equal(r.lucroAcumuladoCentavos, 11200 - 672 - 3600);
+    // Custo: (7 + 1) × 2,00 + (1 + 1) × 10,00 = 36,00.
+    const r = retornoExpositor('beta', [c], [expositor('EXP-02', 'beta', 5000), expositor('EXP-03', null, 7000)]);
+    assert.equal(r.lucroAcumuladoCentavos, 11200 - 3600);
     assert.equal(r.custoExpositoresCentavos, 5000);
-    assert.equal(r.retorno, (11200 - 672 - 3600) / 5000);
+    assert.equal(r.retorno, (11200 - 3600) / 5000);
   });
   it('sem expositor: retorno null', () => {
     assert.equal(retornoExpositor('alfa', [a1], []).retorno, null);

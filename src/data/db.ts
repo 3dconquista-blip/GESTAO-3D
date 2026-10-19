@@ -7,7 +7,7 @@
 // versão, avisa a interface e persiste numa única transação do adaptador.
 import { agoraISO } from '../lib/dates.ts';
 import { novoId } from '../lib/id.ts';
-import { configPadrao } from './defaults.ts';
+import { configPadrao, migrarConfig } from './defaults.ts';
 import type { Base, Colecoes, Config, ID, NomeColecao, Novo } from './types.ts';
 import { COLECOES } from './types.ts';
 
@@ -90,7 +90,7 @@ export class Store {
   /** Substitui tudo em memória (sem persistir). */
   aplicarSnapshot(snap: Snapshot) {
     this.mapas = mapasVazios();
-    this.config = snap.config ? { ...configPadrao(), ...snap.config } : configPadrao();
+    this.config = snap.config ? migrarConfig({ ...configPadrao(), ...snap.config }) : configPadrao();
     for (const c of COLECOES) {
       const lista = snap.colecoes[c] || [];
       const mapa = this.mapas[c] as Map<ID, Base>;

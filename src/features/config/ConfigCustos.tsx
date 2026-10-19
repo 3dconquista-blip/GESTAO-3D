@@ -26,7 +26,7 @@ export function ConfigCustos() {
     <Pagina titulo="Custos e preços" voltarPara="/config" largura="estreita">
       <Cartao titulo="Produção">
         <div class="campos-2">
-          <Campo rotulo="Tarifa de energia" dica="Total da conta de luz ÷ kWh, com impostos">
+          <Campo rotulo="Tarifa de energia" dica="Valor total da conta de luz ÷ kWh consumidos">
             <Numero value={c.tarifaKwh} onChange={(v) => mudar({ tarifaKwh: v ?? 0 })} decimais={4} min={0} prefixo="R$" sufixo="/kWh" />
           </Campo>
           <Campo rotulo="Valor da sua hora de trabalho" dica="Preparar a mesa, acabamento, montagem e embalagem">
@@ -44,12 +44,13 @@ export function ConfigCustos() {
       <Cartao titulo="Preço">
         <div class="pilha pilha-m">
           <div class="campos-2">
-            <Campo rotulo="Imposto sobre o que você recebe" dica="MEI paga DAS fixo (lance em custos fixos). Simples Nacional: informe a alíquota">
-              <Numero value={c.impostoPct} onChange={(v) => mudar({ impostoPct: v ?? 0 })} min={0} max={100} sufixo="%" />
-            </Campo>
             <Campo
-              rotulo="Margem desejada"
-              dica={mult != null ? `Equivale a vender por ${formatNumero(mult, 1)}× o custo na venda direta` : 'Lucro como % do que você recebe'}
+              rotulo="Margem desejada (padrão)"
+              dica={
+                mult != null
+                  ? `Equivale a vender por ${formatNumero(mult, 1)}× o custo na venda direta. Cada produto pode ter a sua margem`
+                  : 'Lucro como % do que você recebe. Cada produto pode ter a sua margem'
+              }
             >
               <Numero value={c.margemDesejadaPct} onChange={(v) => mudar({ margemDesejadaPct: v ?? 0 })} min={0} max={100} sufixo="%" />
             </Campo>
@@ -75,13 +76,10 @@ export function ConfigCustos() {
         </div>
       </Cartao>
 
-      <Cartao titulo="Resultado do mês e MEI">
+      <Cartao titulo="Resultado do mês">
         <div class="campos-2">
-          <Campo rotulo="Custos fixos mensais" dica="DAS MEI, internet, assinaturas. Só entra no resultado do mês">
+          <Campo rotulo="Custos fixos mensais" dica="Internet, assinaturas, aluguel. Não entra no preço: só no resultado do mês">
             <Dinheiro value={c.custosFixosMensaisCentavos} onChange={(v) => mudar({ custosFixosMensaisCentavos: v ?? 0 })} />
-          </Campo>
-          <Campo rotulo="Limite anual do MEI" dica="Alerta quando a receita do ano passar de 80%">
-            <Dinheiro value={c.limiteMeiCentavos} onChange={(v) => mudar({ limiteMeiCentavos: v ?? 0 })} />
           </Campo>
         </div>
       </Cartao>

@@ -17,7 +17,7 @@ export class ErroNegocio extends Error {
 }
 
 /** Saldo de um produto num local, incluindo o que já foi lançado nesta transação. */
-export function saldoTx(t: Tx, produtoId: ID, local: LocalId): number {
+export function saldoTx(t: Pick<Tx, 'all'>, produtoId: ID, local: LocalId): number {
   let s = 0;
   for (const mv of t.all('movEstoque')) {
     if (mv.produtoId !== produtoId) continue;

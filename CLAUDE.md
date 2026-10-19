@@ -1,4 +1,4 @@
-# GESTÃO 3D (app OCTA) - Instruções do Projeto
+# GESTÃO 3D (app 3D gestão, antigo OCTA) - Instruções do Projeto
 
 PWA em português para um negócio de impressão 3D: precificação, estoque e produção, parceiros em consignação
 (acertos), pedidos personalizados, relatórios, CSV e backup. A especificação completa está em `ESPECIFICACAO.md`.

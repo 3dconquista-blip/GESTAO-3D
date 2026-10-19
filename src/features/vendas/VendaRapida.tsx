@@ -203,7 +203,6 @@ export function VendaRapida(_props: TelaProps) {
                   calc.descontoCentavos ? { rotulo: 'Desconto', valor: `− ${formatBRL(calc.descontoCentavos)}` } : null,
                   { rotulo: 'Total', valor: formatBRL(calc.totalCentavos), destaque: true },
                   calc.taxaCentavos ? { rotulo: 'Taxa do cartão', valor: `− ${formatBRL(calc.taxaCentavos)}` } : null,
-                  calc.impostoCentavos ? { rotulo: 'Imposto', valor: `− ${formatBRL(calc.impostoCentavos)}` } : null,
                   { rotulo: 'Custo dos produtos', valor: `− ${formatReais(calc.custoTotal)}` },
                   { rotulo: 'Lucro estimado', valor: formatBRL(calc.lucroCentavos), tom: calc.lucroCentavos < 0 ? 'ruim' : 'ok' },
                 ]}

@@ -22,7 +22,6 @@ const custos: ParametrosCusto = {
   tarifaKwh: 1,
   valorHora: 25,
   taxaFalhaPct: 10,
-  impostoPct: 0,
   margemDesejadaPct: 50,
   arredondamento: 'noventa',
   taxaCartaoPct: 4,
@@ -122,8 +121,8 @@ describe('arredondamentos', () => {
     assert.equal(pctOfCents(1495, 30), 449);
     assert.equal(1495 - pctOfCents(1495, 30), 1046);
   });
-  it('bloqueia imposto + margem >= 100%', () => {
-    assert.ok(erroParametros({ ...custos, impostoPct: 50, margemDesejadaPct: 50 }));
+  it('bloqueia margem >= 100%', () => {
+    assert.ok(erroParametros({ ...custos, margemDesejadaPct: 100 }));
     const canal = { ...canais[0], comissaoPct: 100 };
     const r = precoSugerido(2, canal, custos);
     assert.ok('erro' in r);

@@ -1,6 +1,6 @@
 // "Relatórios" (11.2): filtro de período (esta quinzena, quinzena anterior, este mês, mês anterior,
 // personalizado) e as seções resultado, vendas por canal, parceiros, produtos, materiais, dinheiro que entrou
-// e receita do ano com o MEI. Cada seção exporta CSV. Os números vêm de services/relatorios.ts.
+// e receita do ano. Cada seção exporta CSV. Os números vêm de services/relatorios.ts.
 import { useState } from 'preact/hooks';
 import type { TelaProps } from '../../app/router.ts';
 import { db } from '../../data/db.ts';
@@ -9,11 +9,11 @@ import { nomeMaterial, nomeProduto } from '../../data/selectors.ts';
 import { ROTULO_MOTIVO_PERDA } from '../../data/defaults.ts';
 import { nomeArquivoCSV } from '../../domain/csv.ts';
 import { numeroPedido } from '../../domain/pedidos.ts';
-import { CANAIS_RECEITA, ROTULO_CANAL_RECEITA, type Intervalo, type LinhaParceiro, type LinhaPerda, type LinhaProduto, type Totais } from '../../domain/relatorios.ts';
+import { CANAIS_RECEITA, ROTULO_CANAL_RECEITA, somarTotais, type Intervalo, type LinhaParceiro, type LinhaPerda, type LinhaProduto, type Totais } from '../../domain/relatorios.ts';
 import { diffDias, hojeISO, inicioDoMes, periodoPorChave, type PeriodoChave } from '../../lib/dates.ts';
 import { formatBRL, formatData, formatKg, formatPct, formatQtd, formatReais } from '../../lib/format.ts';
 import {
-  anoEMei,
+  resumoDoAno,
   csvAno,
   csvCanais,
   csvDinheiro,
@@ -51,7 +51,6 @@ import {
   Grade,
   Indicador,
   Pagina,
-  Progresso,
   Resumo,
   Segmentado,
   Selo,
@@ -71,7 +70,7 @@ const ABAS: { id: SecaoRel; rotulo: string }[] = [
   { id: 'produtos', rotulo: 'Produtos' },
   { id: 'materiais', rotulo: 'Materiais' },
   { id: 'dinheiro', rotulo: 'Dinheiro' },
-  { id: 'ano', rotulo: 'Ano e MEI' },
+  { id: 'ano', rotulo: 'Ano' },
 ];
 
 const PERIODOS: { valor: Exclude<PeriodoChave, 'ano'>; rotulo: string }[] = [
@@ -122,7 +121,6 @@ function motivoPerda(l: LinhaPerda): string {
 function SecaoResultado({ p }: { p: Intervalo }) {
   const r = resultadoDoPeriodo(p);
   const dinheiro = dinheiroDoPeriodo(p);
-  const imposto = db.config.custos.impostoPct;
   const diasPeriodo = diffDias(p.de, p.ate) + 1;
   const colunasPerda: Coluna<LinhaPerda>[] = [
     { id: 'item', rotulo: 'Item', render: nomePerda, principal: true },
@@ -151,7 +149,6 @@ function SecaoResultado({ p }: { p: Intervalo }) {
               { rotulo: 'Parceiros (sua parte nos acertos)', valor: brl(r.receitaPorCanal.parceiros) },
               { rotulo: 'Pedidos entregues', valor: brl(r.receitaPorCanal.pedidos) },
               { rotulo: 'Receita', valor: brl(r.receitaCentavos), destaque: true },
-              { rotulo: `(−) Impostos (${formatPct(imposto)})`, valor: brl(-r.impostosCentavos) },
               { rotulo: '(−) Custo dos produtos vendidos', valor: brl(-r.cmvCentavos) },
               { rotulo: '(−) Perdas', valor: brl(-r.perdasCentavos) },
               { rotulo: diasPeriodo < 28 ? `(−) Custos fixos (proporcional a ${diasPeriodo} dias)` : '(−) Custos fixos', valor: brl(-r.custosFixosCentavos) },
@@ -190,19 +187,7 @@ function SecaoCanais({ p }: { p: Intervalo }) {
     linhas.push({ ...c, id: c.canal, rotulo: c.rotulo });
     if (c.canal === 'direta') for (const d of r.direta) if (d.quantidade) linhas.push({ ...d, id: `direta-${d.canal}`, rotulo: `↳ ${d.rotulo}`, sub: true });
   }
-  const total = r.canais.reduce(
-    (t, c) => ({
-      quantidade: t.quantidade + c.quantidade,
-      unidades: t.unidades + c.unidades,
-      vendidoCentavos: t.vendidoCentavos + c.vendidoCentavos,
-      taxasCentavos: t.taxasCentavos + c.taxasCentavos,
-      receitaCentavos: t.receitaCentavos + c.receitaCentavos,
-      impostosCentavos: t.impostosCentavos + c.impostosCentavos,
-      custoCentavos: t.custoCentavos + c.custoCentavos,
-      lucroCentavos: t.lucroCentavos + c.lucroCentavos,
-    }),
-    { quantidade: 0, unidades: 0, vendidoCentavos: 0, taxasCentavos: 0, receitaCentavos: 0, impostosCentavos: 0, custoCentavos: 0, lucroCentavos: 0 } as Totais,
-  );
+  const total = somarTotais(r.canais);
   const colunas: Coluna<LinhaTabCanal>[] = [
     { id: 'canal', rotulo: 'Canal', render: (l) => (l.sub ? <span class="rel-sub">{l.rotulo}</span> : <strong>{l.rotulo}</strong>), principal: true },
     { id: 'qtd', rotulo: 'Registros', render: (l) => formatQtd(l.quantidade), alinhar: 'dir', esconderNoCelular: true },
@@ -452,7 +437,7 @@ function SecaoDinheiro({ p }: { p: Intervalo }) {
   );
 }
 
-// ---------------------------------------------------------------- Ano e MEI
+// ---------------------------------------------------------------- Receita do ano
 
 function anosComDados(hoje: string): number[] {
   const anos = new Set<number>([Number(hoje.slice(0, 4))]);
@@ -465,8 +450,7 @@ function anosComDados(hoje: string): number[] {
 function SecaoAno({ hoje }: { hoje: string }) {
   const anos = anosComDados(hoje);
   const [ano, setAno] = useState(anos[0]);
-  const { receita, mei, meses } = anoEMei(ano, hoje);
-  const tom = mei.nivel === 'acima' ? 'ruim' : mei.nivel === 'atencao' ? 'atencao' : 'ok';
+  const { receita, meses } = resumoDoAno(ano, hoje);
   const colunas: Coluna<(typeof meses)[number]>[] = [
     { id: 'mes', rotulo: 'Mês', render: (l) => <strong>{l.rotulo}</strong>, principal: true },
     { id: 'direta', rotulo: 'Venda direta', render: (l) => brl(l.receitaPorCanal.direta), alinhar: 'dir' },
@@ -484,21 +468,7 @@ function SecaoAno({ hoje }: { hoje: string }) {
           <Escolha value={ano} onChange={(v) => setAno(Number(v))} opcoes={anos.map((a) => ({ valor: a, rotulo: String(a) }))} />
         </div>
       )}
-      {mei.mensagem && (
-        <Aviso tom={tom === 'ruim' ? 'ruim' : 'atencao'} titulo="Limite do MEI">
-          {mei.mensagem}
-        </Aviso>
-      )}
       <Cartao titulo={`Receita de ${ano}`} acoes={<BotaoCSV gerar={() => csvAno(ano, hoje)} />}>
-        <div class="inicio-mei">
-          <div class="inicio-mei-topo">
-            <strong>{brl(receita.receitaCentavos)}</strong>
-            <span class="muted">
-              {mei.limiteCentavos > 0 ? `${formatPct(mei.pct)} do limite do MEI (${brl(mei.limiteCentavos)}) · faltam ${brl(mei.restanteCentavos)}` : 'Limite do MEI não configurado (Configurações > Custos)'}
-            </span>
-          </div>
-          {mei.limiteCentavos > 0 && <Progresso valor={receita.receitaCentavos} max={mei.limiteCentavos} tom={tom} />}
-        </div>
         <Resumo
           linhas={[
             { rotulo: 'Venda direta (menos taxa do cartão)', valor: brl(receita.porCanal.direta) },

@@ -49,11 +49,9 @@ export interface CalculoVenda {
   totalCentavos: Cents;
   /** Taxa do cartão sobre o total (0 em PIX e dinheiro). */
   taxaCentavos: Cents;
-  /** Imposto sobre o que você recebe (total − taxa). */
-  impostoCentavos: Cents;
   /** Σ quantidade × custo (reais, 4 casas). */
   custoTotal: number;
-  /** total − taxa − imposto − custo. */
+  /** total − taxa − custo. */
   lucroCentavos: Cents;
   /** Produtos vendidos acima do saldo em Casa (aviso; a venda é permitida). */
   faltas: FaltaVenda[];
@@ -81,7 +79,7 @@ function calcularDesconto(subtotal: Cents, desconto: DescontoVenda | null | unde
 
 /**
  * Calcula a venda com a configuração e os custos atuais (não grava): subtotal, desconto (% com metade para cima,
- * nunca acima do subtotal), total, taxa do cartão, imposto, custo, lucro e faltas em Casa.
+ * nunca acima do subtotal), total, taxa do cartão, custo, lucro e faltas em Casa.
  */
 export function calcularVenda(entrada: EntradaVenda): CalculoVenda {
   if (!FORMAS.includes(entrada.forma)) throw new ErroNegocio('Escolha a forma de pagamento.');
@@ -108,7 +106,6 @@ export function calcularVenda(entrada: EntradaVenda): CalculoVenda {
   const desconto = calcularDesconto(subtotal, entrada.desconto);
   const total = subtotal - desconto;
   const taxa = entrada.forma === 'cartao' ? pctOfCents(total, custos.taxaCartaoPct) : 0;
-  const imposto = pctOfCents(total - taxa, custos.impostoPct);
   const custo = round4(custoTotal);
   const faltas: FaltaVenda[] = [];
   for (const [produtoId, qtd] of qtdPorProduto) {
@@ -122,9 +119,8 @@ export function calcularVenda(entrada: EntradaVenda): CalculoVenda {
     descontoCentavos: desconto,
     totalCentavos: total,
     taxaCentavos: taxa,
-    impostoCentavos: imposto,
     custoTotal: custo,
-    lucroCentavos: total - taxa - imposto - toCents(custo),
+    lucroCentavos: total - taxa - toCents(custo),
     faltas,
   };
 }

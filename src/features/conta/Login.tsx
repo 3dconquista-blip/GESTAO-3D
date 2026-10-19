@@ -1,5 +1,6 @@
 // Tela de login (aparece quando a nuvem está configurada e ninguém entrou neste aparelho).
 import { useState } from 'preact/hooks';
+import { NOME_APP } from '../../data/defaults.ts';
 import { criarConta, entrar, salvarConfigNuvem } from '../../data/nuvem.ts';
 import { Aviso, Botao, Campo, Cartao, Logo, Pilha, Texto, avisar, confirmar } from '../../ui/index.ts';
 import './conta.css';
@@ -53,7 +54,7 @@ export function Login() {
       <div class="conta-caixa">
         <div class="conta-marca">
           <Logo tamanho={56} />
-          <h1>OCTA</h1>
+          <h1>{NOME_APP}</h1>
           <p>Seus dados no celular e no computador.</p>
         </div>
         <Cartao>

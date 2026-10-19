@@ -33,4 +33,4 @@ createServer(async (req, res) => {
     res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
     res.end('Não encontrado');
   }
-}).listen(PORT, () => console.log(`OCTA em http://localhost:${PORT}/`));
+}).listen(PORT, () => console.log(`3D gestão em http://localhost:${PORT}/`));

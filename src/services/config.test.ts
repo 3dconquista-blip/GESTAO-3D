@@ -36,7 +36,6 @@ const CUSTOS_A = {
   tarifaKwh: 1,
   valorHora: 25,
   taxaFalhaPct: 10,
-  impostoPct: 0,
   margemDesejadaPct: 50,
   arredondamento: 'noventa' as const,
   taxaCartaoPct: 4,
@@ -78,7 +77,7 @@ describe('atualizarEmpresa', () => {
     falha(() => atualizarEmpresa({ nome: '  ' }), /nome da empresa/);
     falha(() => atualizarEmpresa({ whatsapp: '123' }), /WhatsApp/);
     falha(() => atualizarEmpresa({ corPrincipal: 'azul' }), /cor principal/);
-    assert.equal(db.config.empresa.nome, 'OCTA');
+    assert.equal(db.config.empresa.nome, '3D gestão');
   });
 });
 
@@ -95,12 +94,10 @@ describe('atualizarCustos', () => {
   it('percentuais de 0 a 100', () => {
     falha(() => atualizarCustos({ taxaFalhaPct: 101 }), /Taxa de falha.*entre 0% e 100%/);
     falha(() => atualizarCustos({ margemMinimaPct: -1 }), /Margem mínima/);
-    falha(() => atualizarCustos({ impostoPct: Number.NaN }), /Imposto/);
     falha(() => atualizarCustos({ taxaCartaoPct: 100 }), /taxa do cartão/);
   });
 
-  it('imposto + margem desejada ≥ 100% é bloqueado com explicação', () => {
-    falha(() => atualizarCustos({ impostoPct: 50, margemDesejadaPct: 50 }), /Imposto \+ margem desejada chegam a 100% ou mais/);
+  it('margem desejada ≥ 100% é bloqueada com explicação', () => {
     falha(() => atualizarCustos({ margemDesejadaPct: 100 }), /nenhum preço cobre o custo/);
     assert.equal(db.config.custos.margemDesejadaPct, 50);
   });
@@ -109,7 +106,6 @@ describe('atualizarCustos', () => {
     falha(() => atualizarCustos({ tarifaKwh: -0.1 }), /Tarifa de energia/);
     falha(() => atualizarCustos({ valorHora: -1 }), /hora de trabalho/);
     falha(() => atualizarCustos({ custosFixosMensaisCentavos: -1 }), /Custos fixos/);
-    falha(() => atualizarCustos({ limiteMeiCentavos: 1.5 }), /Limite anual/);
     falha(() => atualizarCustos({ arredondamento: 'meio' as never }), /arredondamento/);
   });
 
@@ -338,7 +334,7 @@ describe('concluirOnboarding', () => {
     d.filamentos[1].custoMedio = 0;
     falha(() => concluirOnboarding(d), /PETG Branco.*custo do kg/);
     assert.equal(db.config.onboardingConcluido, false);
-    assert.equal(db.config.empresa.nome, 'OCTA');
+    assert.equal(db.config.empresa.nome, '3D gestão');
     assert.equal(db.all('impressoras').length, 0);
     assert.equal(db.all('materiais').length, 0);
     assert.equal(db.all('movMateriais').length, 0);

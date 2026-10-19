@@ -1,5 +1,5 @@
 // Service Worker do OCTA (gerado por scripts/build.mjs - não edite sw.js direto).
-const CACHE = 'octa-c17c08b048';
+const CACHE = 'octa-91f25f18ef';
 const ASSETS = ['./', './index.html', './dist/app.js', './dist/app.css', './manifest.webmanifest', './icons/octa.svg'];
 
 self.addEventListener('install', (e) => {

@@ -25,7 +25,6 @@ import {
   ItemLista,
   Lista,
   Pagina,
-  Progresso,
   Resumo,
   Secao,
   Selo,
@@ -149,7 +148,7 @@ function EsteMes({ mes, hoje }: { mes: ComparativoMeses; hoje: string }) {
           })}
         </div>
         <small class="muted">
-          Lucro estimado = receita − impostos − custo dos produtos vendidos − perdas − custos fixos do mês ({formatBRL(atual.custosFixosCentavos)}).
+          Lucro estimado = receita − custo dos produtos vendidos − perdas − custos fixos do mês ({formatBRL(atual.custosFixosCentavos)}).
           {hoje < atual.ate ? ' O mês ainda não acabou: os custos fixos entram inteiros.' : ''}
         </small>
       </Cartao>
@@ -182,11 +181,6 @@ export function Inicio(_props: TelaProps) {
           Comece cadastrando materiais e produtos em Estoque, ou carregue os dados de exemplo em Mais &gt; Configurações &gt; Dados para ver o
           painel funcionando.
         </Dica>
-      )}
-      {p.mei.mensagem && (
-        <Aviso tom={p.mei.nivel === 'acima' ? 'ruim' : 'atencao'} titulo="Limite do MEI" acao={<Botao pequeno href="/relatorios?secao=ano">Ver</Botao>}>
-          {p.mei.mensagem}
-        </Aviso>
       )}
       {h.aReceber.vencidas.map((v) => (
         <Aviso key={v.parceiro.id} tom="ruim" titulo={`Pendência vencida: ${v.parceiro.nome}`} acao={<Botao pequeno href={`/parceiros/${v.parceiro.id}`}>Ver</Botao>}>
@@ -304,25 +298,6 @@ export function Inicio(_props: TelaProps) {
           </div>
         </Cartao>
       </Grade>
-
-      <Cartao titulo={`Receita do ano · ${hoje.slice(0, 4)}`} compacto>
-        <ReceitaAnoMei mei={p.mei} />
-      </Cartao>
     </Pagina>
-  );
-}
-
-function ReceitaAnoMei({ mei }: { mei: ReturnType<typeof painelInicio>['mei'] }) {
-  const tom = mei.nivel === 'acima' ? 'ruim' : mei.nivel === 'atencao' ? 'atencao' : 'ok';
-  return (
-    <div class="inicio-mei">
-      <div class="inicio-mei-topo">
-        <strong>{formatBRL(mei.receitaCentavos)}</strong>
-        <span class="muted">
-          {mei.limiteCentavos > 0 ? `${formatPct(mei.pct)} do limite do MEI (${formatBRL(mei.limiteCentavos)})` : 'Limite do MEI não configurado'}
-        </span>
-      </div>
-      {mei.limiteCentavos > 0 && <Progresso valor={mei.receitaCentavos} max={mei.limiteCentavos} tom={tom} />}
-    </div>
   );
 }

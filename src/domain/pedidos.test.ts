@@ -30,7 +30,6 @@ const custos: ParametrosCusto = {
   tarifaKwh: 1,
   valorHora: 25,
   taxaFalhaPct: 10,
-  impostoPct: 0,
   margemDesejadaPct: 50,
   arredondamento: 'noventa',
 };
@@ -56,7 +55,6 @@ const entradaD = (custosItens: number[]): EntradaOrcamento => ({
   custosItens,
   horasModelagem: 1,
   valorHoraModelagem: 40,
-  impostoPct: 0,
   margemPct: 50,
   urgente: false,
   urgenciaPct: 20,
@@ -87,7 +85,6 @@ function pedido(over: Partial<Pedido> = {}): Pedido {
     descontoPct: 0,
     sinalPct: 50,
     pedidoMinimoCentavos: 3000,
-    impostoPct: 0,
     margemPct: 50,
     valorHoraModelagem: 40,
     arredondamento: 'noventa',
@@ -169,7 +166,7 @@ describe('Exemplo D — orçamento', () => {
     assert.equal(toCents(g.precoProducao), 7767);
   });
   it('lucro R$ 39,06 (33,1% do total)', () => {
-    const l = lucroPedido({ totalCentavos: 11790, freteCentavos: 0, impostoPct: 0, taxasCartaoCentavos: 0, custoProducao: 38.8367, modelagem: 40 });
+    const l = lucroPedido({ totalCentavos: 11790, freteCentavos: 0, taxasCartaoCentavos: 0, custoProducao: 38.8367, modelagem: 40 });
     assert.equal(l.lucroCentavos, 3906);
     assert.equal(Math.round(l.margemPct * 10) / 10, 33.1);
   });
@@ -197,15 +194,15 @@ describe('orçamento — regras', () => {
     assert.equal(o.totalSemFreteCentavos, 3090);
     assert.equal(calcularOrcamento({ ...entradaD([2]), horasModelagem: 0, arredondamento: 'nenhum' }).totalCentavos, 3000);
   });
-  it('bloqueia imposto + margem >= 100%', () => {
-    const o = calcularOrcamento({ ...entradaD([38.8367]), impostoPct: 10, margemPct: 90 });
+  it('bloqueia margem >= 100%', () => {
+    const o = calcularOrcamento({ ...entradaD([38.8367]), margemPct: 100 });
     assert.ok(o.erro);
     assert.equal(o.totalCentavos, 0);
   });
-  it('imposto e taxa de cartão reduzem o lucro; frete não é receita', () => {
-    const l = lucroPedido({ totalCentavos: 13290, freteCentavos: 1500, impostoPct: 6, taxasCartaoCentavos: 206, custoProducao: 38.8367, modelagem: 40 });
-    // 117,90 × 0,94 − 2,06 − 38,8367 − 40 = 29,9293
-    assert.equal(l.lucroCentavos, 2993);
+  it('taxa de cartão reduz o lucro; frete não é receita', () => {
+    const l = lucroPedido({ totalCentavos: 13290, freteCentavos: 1500, taxasCartaoCentavos: 206, custoProducao: 38.8367, modelagem: 40 });
+    // 117,90 − 2,06 − 38,8367 − 40 = 37,0033
+    assert.equal(l.lucroCentavos, 3700);
   });
   it('desconto por quantidade sugerido: 10% a partir de 10 unidades', () => {
     const cfg = configPadrao().pedidos;

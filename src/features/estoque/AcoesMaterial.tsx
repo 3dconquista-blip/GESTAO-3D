@@ -2,7 +2,7 @@
 import { useState } from 'preact/hooks';
 import { saldoMaterial } from '../../data/selectors.ts';
 import type { Material } from '../../data/types.ts';
-import { gramasRestantes } from '../../domain/materiais.ts';
+import { gramasRestantes, TARA_CARRETEL_G } from '../../domain/materiais.ts';
 import { formatGramas, formatQtd } from '../../lib/format.ts';
 import { ajustarMaterial, pesarCarretel, registrarPerdaMaterial } from '../../services/materiais.ts';
 import { Aviso, Botao, Campo, Modal, Numero, Resumo, Segmentado, Texto } from '../../ui/index.ts';
@@ -12,11 +12,11 @@ function qtd(m: Material, q: number): string {
   return m.tipo === 'filamento' ? formatGramas(q) : `${formatQtd(q)} ${m.unidade}`;
 }
 
-/** "Pesei o carretel": peso na balança − peso do carretel vazio = gramas restantes. Gera um ajuste. */
+/** "Pesei o carretel": peso na balança − carretel vazio (170 g) = gramas restantes. Gera um ajuste. */
 export function ModalPesagem({ material, onFechar }: { material: Material; onFechar: () => void }) {
   const [peso, setPeso] = useState<number | null>(null);
   const saldo = saldoMaterial(material.id);
-  const tara = material.taraCarretelG || 0;
+  const tara = TARA_CARRETEL_G;
   const restantes = peso != null ? gramasRestantes(peso, tara) : null;
   const delta = restantes != null ? Math.round((restantes - saldo) * 100) / 100 : null;
   const confirmar = () => {
@@ -42,10 +42,9 @@ export function ModalPesagem({ material, onFechar }: { material: Material; onFec
       <Campo rotulo="Peso na balança (carretel com filamento)">
         <Numero value={peso} onChange={setPeso} decimais={0} min={0} sufixo="g" autoFocus />
       </Campo>
-      {!tara && <Aviso tom="atencao">O peso do carretel vazio está em 0 g (refil). Se for carretel, informe a tara no cadastro do material.</Aviso>}
       <Resumo
         linhas={[
-          { rotulo: 'Carretel vazio', valor: formatGramas(tara) },
+          { rotulo: 'Carretel vazio (padrão)', valor: `− ${formatGramas(tara)}` },
           { rotulo: 'Gramas restantes', valor: restantes != null ? formatGramas(restantes) : '—' },
           { rotulo: 'Saldo no sistema', valor: formatGramas(saldo) },
           {

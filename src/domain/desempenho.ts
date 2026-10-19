@@ -5,11 +5,11 @@
 // - sua parte por mês = sua parte ÷ dias × 30 (centavos, metade para cima).
 // - item parado = zero vendas nos 2 últimos acertos seguidos (exposto nos dois) e ainda no parceiro.
 // - baixo desempenho = sua parte por mês abaixo do limite nos 2 últimos acertos seguidos.
-// - lucro acumulado no parceiro = Σ sua parte − imposto − Σ (vendidos + avariados + faltas abonadas)
+// - lucro acumulado no parceiro = Σ sua parte − Σ (vendidos + avariados + faltas abonadas)
 //   × custo do momento; retorno = lucro acumulado ÷ custo dos expositores.
 import type { Acerto, Cents, Expositor, ID, ISODate, Parceiro } from '../data/types.ts';
 import { diffDias, entre } from '../lib/dates.ts';
-import { pctOfCents, roundTo, toCents } from '../lib/money.ts';
+import { roundTo, toCents } from '../lib/money.ts';
 
 /** Limite padrão de baixo desempenho (R$ 50,00 por mês). */
 export const LIMITE_BAIXO_DESEMPENHO_PADRAO: Cents = 5000;
@@ -204,7 +204,7 @@ export interface ItemParado {
 }
 
 export interface RetornoExpositor {
-  /** Σ sua parte − imposto − custo (do momento) das peças vendidas, avariadas e abonadas. */
+  /** Σ sua parte − custo (do momento) das peças vendidas, avariadas e abonadas. */
   lucroAcumuladoCentavos: Cents;
   /** Soma do custo dos expositores do parceiro. */
   custoExpositoresCentavos: Cents;
@@ -237,8 +237,6 @@ export interface EntradaDesempenho {
   periodo?: FiltroPeriodo;
   /** Padrão R$ 50,00 (Configurações > Parcerias). */
   limiteBaixoDesempenhoCentavos?: Cents;
-  /** Imposto sobre o que você recebe (%), descontado do lucro acumulado. Padrão 0. */
-  impostoPct?: number;
   /** Saldo atual do produto neste parceiro; sem ele, usa o estoque final do último acerto. */
   saldoAtual?: (produtoId: ID) => number;
   /** Todos os parceiros: a sugestão de destino de itens parados considera só os ativos. */
@@ -294,7 +292,7 @@ export function desempenhoParceiro(e: EntradaDesempenho): DesempenhoParceiro {
     maisVendidos,
     itensParados,
     baixoDesempenho,
-    retornoExpositor: retornoExpositor(parceiro.id, todos, e.expositores, e.impostoPct ?? 0),
+    retornoExpositor: retornoExpositor(parceiro.id, todos, e.expositores),
   };
 }
 
@@ -306,7 +304,6 @@ export function retornoExpositor(
   parceiroId: ID,
   acertos: Acerto[],
   expositores: Expositor[],
-  impostoPct = 0,
 ): RetornoExpositor {
   let suaParte = 0;
   let custo = 0;
@@ -315,7 +312,7 @@ export function retornoExpositor(
     suaParte += a.suaParteCentavos;
     for (const it of a.itens) custo += (it.vendidos + it.avariados + it.faltasAbonadas) * (it.custoUnit || 0);
   }
-  const lucroAcumuladoCentavos = suaParte - pctOfCents(suaParte, impostoPct) - toCents(custo);
+  const lucroAcumuladoCentavos = suaParte - toCents(custo);
   let custoExpositoresCentavos = 0;
   for (const x of expositores) if (x.parceiroId === parceiroId) custoExpositoresCentavos += x.custoCentavos || 0;
   return {

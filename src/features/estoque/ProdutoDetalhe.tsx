@@ -4,12 +4,21 @@ import { navegar, type TelaProps } from '../../app/router.ts';
 import { db } from '../../data/db.ts';
 import { ROTULO_TIPO_MOV } from '../../data/defaults.ts';
 import { useDb } from '../../data/hooks.ts';
-import { composicaoProduto, custoProduto, materiaisAtivos, nomeMaterial, saldosDoProduto } from '../../data/selectors.ts';
+import { composicaoProduto, custoProduto, custosDoProduto, margemDoProduto, materiaisAtivos, nomeMaterial, saldosDoProduto } from '../../data/selectors.ts';
 import type { LocalId, MovEstoque, Produto } from '../../data/types.ts';
 import { CASA, parceiroDoLocal } from '../../data/types.ts';
 import { simular } from '../../domain/pricing.ts';
-import { formatBRL, formatData, formatDuracao, formatGramas, formatQtd, formatReais } from '../../lib/format.ts';
-import { alertaLicenca, arquivarProduto, duplicarParaOutraCor, nomeParaCor, salvarProduto } from '../../services/produtos.ts';
+import { formatBRL, formatData, formatDuracao, formatGramas, formatPct, formatQtd, formatReais } from '../../lib/format.ts';
+import {
+  alertaLicenca,
+  arquivarProduto,
+  copiarProduto,
+  duplicarParaOutraCor,
+  excluirProduto,
+  nomeParaCor,
+  previaExclusao,
+  salvarProduto,
+} from '../../services/produtos.ts';
 import {
   Aviso,
   Botao,
@@ -117,7 +126,7 @@ export function ProdutoDetalhe({ params }: TelaProps) {
   const custo = custoProduto(p.id);
   const comp = composicaoProduto(p.id);
   const saldos = saldosDoProduto(p.id);
-  const sim = p.precoEtiquetaCentavos ? simular(p.precoEtiquetaCentavos, custo, db.config.canais, db.config.custos) : null;
+  const sim = p.precoEtiquetaCentavos ? simular(p.precoEtiquetaCentavos, custo, db.config.canais, custosDoProduto(p)) : null;
   const abaixo = sim ? sim.linhas.filter((l) => l.abaixoMinima || l.prejuizo).map((l) => l.canal.nome) : [];
   const movs = db
     .all('movEstoque')
@@ -132,6 +141,42 @@ export function ProdutoDetalhe({ params }: TelaProps) {
     try {
       salvarProduto({ id: p.id, nome: p.nome, categoria: p.categoria, mesas: p.mesas, precoEtiquetaCentavos: c });
       avisar('Preço de etiqueta atualizado');
+    } catch (e) {
+      avisar(e instanceof Error ? e.message : String(e), 'ruim');
+    }
+  };
+
+  const copiar = () => {
+    try {
+      const novo = copiarProduto(p.id);
+      avisar(`Cópia criada: ${novo.nome} (${novo.codigo})`);
+      navegar(`/estoque/produtos/${novo.id}/editar`);
+    } catch (e) {
+      avisar(e instanceof Error ? e.message : String(e), 'ruim');
+    }
+  };
+
+  const excluir = async () => {
+    const pr = previaExclusao(p.id);
+    if (pr.bloqueio) return avisar(pr.bloqueio, 'ruim');
+    const ok = await confirmar({
+      titulo: `Excluir "${p.nome}"?`,
+      itens: [
+        'Some de vez das listas, da venda rápida e dos relatórios de produtos. Não dá para reativar.',
+        pr.emCasa > 0 ? `As ${formatQtd(pr.emCasa)} peça(s) em Casa saem do estoque (ajuste "Produto excluído", não conta como perda).` : '',
+        pr.emCasa < 0 ? `O saldo negativo em Casa (${formatQtd(pr.emCasa)}) é zerado com um ajuste "Produto excluído".` : '',
+        pr.mixes.length ? `Sai do mix de: ${pr.mixes.join(', ')}.` : '',
+        'O histórico continua guardado: movimentações, vendas e acertos antigos mostram o produto como "(excluído)".',
+        'Se só quer tirar das listas por um tempo, use "Arquivar".',
+      ].filter(Boolean),
+      confirmar: 'Excluir produto',
+      perigo: true,
+    });
+    if (!ok) return;
+    try {
+      excluirProduto(p.id);
+      avisar('Produto excluído');
+      navegar('/estoque/produtos', { substituir: true });
     } catch (e) {
       avisar(e instanceof Error ? e.message : String(e), 'ruim');
     }
@@ -165,15 +210,22 @@ export function ProdutoDetalhe({ params }: TelaProps) {
   return (
     <Pagina
       titulo={p.nome}
-      subtitulo={[p.codigo, p.categoria, p.modelo !== p.nome ? p.modelo : '', p.arquivado ? 'Arquivado' : ''].filter(Boolean).join(' · ')}
+      subtitulo={[p.codigo, p.categoria, p.modelo !== p.nome ? p.modelo : '', p.excluido ? 'Excluído' : p.arquivado ? 'Arquivado' : ''].filter(Boolean).join(' · ')}
       voltarPara="/estoque/produtos"
       acoes={
-        <Botao variante="primario" icone="editar" href={`/estoque/produtos/${p.id}/editar`}>
-          Editar
-        </Botao>
+        p.excluido ? undefined : (
+          <Botao variante="primario" icone="editar" href={`/estoque/produtos/${p.id}/editar`}>
+            Editar
+          </Botao>
+        )
       }
     >
-      {abaixo.length > 0 && (
+      {p.excluido && (
+        <Aviso tom="info" titulo="Produto excluído">
+          Excluído{p.excluidoEm ? ` em ${formatData(p.excluidoEm)}` : ''}. Não aparece mais nas listas; o histórico abaixo continua guardado.
+        </Aviso>
+      )}
+      {!p.excluido && abaixo.length > 0 && (
         <Aviso tom="ruim" titulo="Margem abaixo da mínima">
           Com o preço de etiqueta atual ({formatBRL(p.precoEtiquetaCentavos)}): {abaixo.join(', ')}. Confira o simulador abaixo.
         </Aviso>
@@ -210,7 +262,13 @@ export function ProdutoDetalhe({ params }: TelaProps) {
 
       <Cartao titulo="Simulador de preço">
         {/* Custo com precisão total, como no Exemplo A (preço exato 4,9747; os centavos não mudam). */}
-        <SimuladorPreco key={`${p.id}-${p.precoEtiquetaCentavos}-${custo}`} custoUnit={comp?.total ?? custo} precoInicial={p.precoEtiquetaCentavos} onUsarPreco={usarPreco} />
+        <SimuladorPreco
+          key={`${p.id}-${p.precoEtiquetaCentavos}-${custo}-${p.margemPct}`}
+          custoUnit={comp?.total ?? custo}
+          precoInicial={p.precoEtiquetaCentavos}
+          onUsarPreco={p.excluido ? undefined : usarPreco}
+          margemPct={p.margemPct}
+        />
       </Cartao>
 
       <Grade colunas={2}>
@@ -225,7 +283,20 @@ export function ProdutoDetalhe({ params }: TelaProps) {
               p.cor ? { rotulo: 'Cor', valor: p.cor } : null,
               { rotulo: 'Categoria', valor: p.categoria },
               { rotulo: 'Origem do modelo', valor: p.origemModelo === 'proprio' ? 'Próprio' : 'De terceiro' },
-              { rotulo: 'Situação', valor: p.arquivado ? <Selo>Arquivado</Selo> : <Selo tom="ok">Ativo</Selo> },
+              {
+                rotulo: 'Margem de lucro',
+                valor: p.margemPct != null ? `${formatPct(p.margemPct)} (deste produto)` : `${formatPct(margemDoProduto(p))} (padrão)`,
+              },
+              {
+                rotulo: 'Situação',
+                valor: p.excluido ? (
+                  <Selo tom="ruim">Excluído{p.excluidoEm ? ` em ${formatData(p.excluidoEm)}` : ''}</Selo>
+                ) : p.arquivado ? (
+                  <Selo>Arquivado</Selo>
+                ) : (
+                  <Selo tom="ok">Ativo</Selo>
+                ),
+              },
             ]}
           />
         </Cartao>
@@ -255,14 +326,22 @@ export function ProdutoDetalhe({ params }: TelaProps) {
         </Linha>
       )}
 
-      <Linha>
-        <Botao icone="copiar" onClick={() => setDuplicando(true)}>
-          Duplicar para outra cor
-        </Botao>
-        <Botao variante="fantasma" icone={p.arquivado ? 'atualizar' : 'arquivar'} onClick={arquivar}>
-          {p.arquivado ? 'Reativar produto' : 'Arquivar produto'}
-        </Botao>
-      </Linha>
+      {!p.excluido && (
+        <Linha>
+          <Botao icone="copiar" onClick={copiar}>
+            Copiar produto
+          </Botao>
+          <Botao icone="camadas" onClick={() => setDuplicando(true)}>
+            Duplicar para outra cor
+          </Botao>
+          <Botao variante="fantasma" icone={p.arquivado ? 'atualizar' : 'arquivar'} onClick={arquivar}>
+            {p.arquivado ? 'Reativar produto' : 'Arquivar produto'}
+          </Botao>
+          <Botao variante="perigo" icone="lixeira" onClick={excluir}>
+            Excluir produto
+          </Botao>
+        </Linha>
+      )}
       {duplicando && <DuplicarCor p={p} aberto={duplicando} onFechar={() => setDuplicando(false)} />}
     </Pagina>
   );

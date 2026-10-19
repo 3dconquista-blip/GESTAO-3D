@@ -144,10 +144,19 @@ export function recebidoNoCanal(precoCentavos: Cents, canal: Canal, custos: Para
   return p * (1 - comissaoCanal(canal, custos) / 100) - toReais(canal.tarifaFixaCentavos || 0);
 }
 
+/**
+ * Parâmetros com a margem própria de um produto no lugar da margem desejada padrão. A margem mínima de alerta
+ * desce junto quando a margem do produto for menor (senão o preço sugerido já nasceria vermelho).
+ */
+export function custosComMargem(custos: ParametrosCusto, margemPct?: number | null): ParametrosCusto {
+  if (margemPct == null || !Number.isFinite(margemPct)) return custos;
+  return { ...custos, margemDesejadaPct: margemPct, margemMinimaPct: Math.min(custos.margemMinimaPct, margemPct) };
+}
+
 /** Erro de parâmetros que impede calcular preço sugerido, ou null. */
 export function erroParametros(custos: ParametrosCusto, canal?: Canal): string | null {
-  if (custos.impostoPct + custos.margemDesejadaPct >= 100) {
-    return 'Imposto + margem desejada chegam a 100% ou mais. Assim nenhum preço cobre o custo. Reduza a margem ou o imposto.';
+  if (custos.margemDesejadaPct >= 100) {
+    return 'A margem desejada chega a 100% ou mais. Assim nenhum preço cobre o custo. Reduza a margem.';
   }
   if (canal && comissaoCanal(canal, custos) >= 100) {
     return `A comissão do canal "${canal.nome}" é de 100% ou mais. Assim você não recebe nada. Corrija a comissão.`;
@@ -155,9 +164,9 @@ export function erroParametros(custos: ParametrosCusto, canal?: Canal): string |
   return null;
 }
 
-/** Multiplicador equivalente na venda direta: 1 ÷ (1 − imposto − margem). null se inválido. */
+/** Multiplicador equivalente na venda direta: 1 ÷ (1 − margem). null se inválido. */
 export function multiplicadorDireto(custos: ParametrosCusto): number | null {
-  const den = 1 - custos.impostoPct / 100 - custos.margemDesejadaPct / 100;
+  const den = 1 - custos.margemDesejadaPct / 100;
   return den > 0 ? 1 / den : null;
 }
 
@@ -170,7 +179,7 @@ export interface PrecoSugerido {
 }
 
 /**
- * preço_sugerido(canal) = (custo ÷ (1 − imposto − margem) + tarifa_fixa) ÷ (1 − comissão),
+ * preço_sugerido(canal) = (custo ÷ (1 − margem) + tarifa_fixa) ÷ (1 − comissão),
  * arredondado conforme a configuração. Retorna { erro } se os parâmetros forem inválidos.
  */
 export function precoSugerido(
@@ -180,7 +189,7 @@ export function precoSugerido(
 ): PrecoSugerido | { erro: string } {
   const erro = erroParametros(custos, canal);
   if (erro) return { erro };
-  const den = 1 - custos.impostoPct / 100 - custos.margemDesejadaPct / 100;
+  const den = 1 - custos.margemDesejadaPct / 100;
   const com = comissaoCanal(canal, custos) / 100;
   const exato = (custoUnit / den + toReais(canal.tarifaFixaCentavos || 0)) / (1 - com);
   return { canal, exato, centavos: arredondarPreco(exato, custos.arredondamento) };
@@ -206,7 +215,7 @@ export interface LinhaSimulacao {
   /** Você recebe (reais). */
   recebido: number;
   custo: number;
-  /** recebido × (1 − imposto) − custo (reais). */
+  /** recebido − custo (reais). */
   lucro: number;
   /** lucro ÷ recebido × 100 (NaN se recebido ≤ 0). */
   margemPct: number;
@@ -222,7 +231,7 @@ export function analisarPreco(
   custos: ParametrosCusto,
 ): LinhaSimulacao {
   const recebido = recebidoNoCanal(precoCentavos, canal, custos);
-  const lucro = recebido * (1 - custos.impostoPct / 100) - custoUnit;
+  const lucro = recebido - custoUnit;
   const margemPct = recebido > 0 ? (lucro / recebido) * 100 : Number.NaN;
   // Compara com a margem já arredondada a 1 casa (o que o dono vê na tela).
   const margemExibida = Number.isFinite(margemPct) ? Math.round(margemPct * 10) / 10 : -Infinity;

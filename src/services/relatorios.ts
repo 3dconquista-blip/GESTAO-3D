@@ -11,7 +11,6 @@ import { paraCSV, type ColunaCSV } from '../domain/csv.ts';
 import { alertasPedidos, numeroPedido, situacaoFinanceira, type AlertaPedido } from '../domain/pedidos.ts';
 import type { StatusMargem } from '../domain/pricing.ts';
 import {
-  alertaMei,
   comparativoMeses,
   consumoFilamentoPorMes,
   dinheiroQueEntrou,
@@ -26,7 +25,6 @@ import {
   ultimaVendaPorProduto,
   vendasPorParceiro,
   vendasPorProduto,
-  type AlertaMei,
   type ComparativoMeses,
   type DadosRelatorio,
   type DinheiroEntrou,
@@ -69,7 +67,7 @@ export const dadosRelatorio = memo(
   }),
 );
 
-/** Imposto % e custos fixos mensais da configuração atual. */
+/** Custos fixos mensais da configuração atual. */
 export function parametrosRelatorio(): ParametrosRelatorio {
   return db.config.custos;
 }
@@ -80,7 +78,7 @@ const nomeParceiro = (id: ID | null | undefined) => (id ? db.get('parceiros', id
 
 const resultadoMemo = memoPorChave((k) => resultadoPeriodo(dadosRelatorio(), intervalo(k), parametrosRelatorio()));
 
-/** Resultado do período: receita por canal − impostos − custo dos produtos vendidos − perdas − custos fixos. */
+/** Resultado do período: receita por canal − custo dos produtos vendidos − perdas − custos fixos. */
 export function resultadoDoPeriodo(p: Intervalo): ResultadoPeriodo {
   return resultadoMemo(chave(p));
 }
@@ -92,14 +90,14 @@ export function resultadoDoMes(mes: string): ResultadoMes {
   return resultadoMesMemo(mes.slice(0, 7));
 }
 
-const produtosMemo = memoPorChave((k) => vendasPorProduto(dadosRelatorio(), intervalo(k), parametrosRelatorio()));
+const produtosMemo = memoPorChave((k) => vendasPorProduto(dadosRelatorio(), intervalo(k)));
 
 /** Vendas por produto no período (venda direta e parceiros; pedidos só em peças). */
 export function produtosDoPeriodo(p: Intervalo): LinhaProduto[] {
   return produtosMemo(chave(p));
 }
 
-const parceirosMemo = memoPorChave((k) => vendasPorParceiro(dadosRelatorio(), intervalo(k), parametrosRelatorio()));
+const parceirosMemo = memoPorChave((k) => vendasPorParceiro(dadosRelatorio(), intervalo(k)));
 
 /** Vendas por parceiro no período: ranking, giro, a receber e retorno do expositor. */
 export function parceirosDoPeriodo(p: Intervalo): LinhaParceiro[] {
@@ -212,11 +210,10 @@ export function materiaisDoPeriodo(p: Intervalo): MateriaisDoPeriodo {
   return materiaisMemo(chave(p));
 }
 
-// ---------------------------------------------------------------- Ano e MEI
+// ---------------------------------------------------------------- Ano
 
-export interface AnoMei {
+export interface ResumoAno {
   receita: ReceitaAno;
-  mei: AlertaMei;
   /** Receita e lucro de cada mês do ano, do primeiro mês com registros até o mês de `hoje` (ano corrente) ou dezembro. */
   meses: ResultadoMes[];
 }
@@ -235,7 +232,7 @@ export const primeiraAtividade = memo((): ISODate | null => {
   return min;
 });
 
-const anoMemo = memoPorChave((k): AnoMei => {
+const anoMemo = memoPorChave((k): ResumoAno => {
   const [anoTxt, hoje] = k.split('|');
   const ano = Number(anoTxt);
   const receita = receitaDoAno(dadosRelatorio(), ano);
@@ -245,11 +242,11 @@ const anoMemo = memoPorChave((k): AnoMei => {
   const primeiroMes = !inicio || inicio.slice(0, 4) < anoTxt ? 1 : inicio.slice(0, 4) === anoTxt ? Number(inicio.slice(5, 7)) : 13;
   const meses: ResultadoMes[] = [];
   for (let m = primeiroMes; m <= ultimoMes; m++) meses.push(resultadoDoMes(`${anoTxt}-${String(m).padStart(2, '0')}`));
-  return { receita, mei: alertaMei(receita.receitaCentavos, db.config.custos.limiteMeiCentavos), meses };
+  return { receita, meses };
 });
 
-/** Receita do ano civil com o alerta do limite do MEI. */
-export function anoEMei(ano: number, hoje: ISODate = hojeISO()): AnoMei {
+/** Receita do ano civil e o resultado de cada mês. */
+export function resumoDoAno(ano: number, hoje: ISODate = hojeISO()): ResumoAno {
   return anoMemo(`${ano}|${hoje}`);
 }
 
@@ -272,7 +269,6 @@ export interface PainelInicio {
   serie: PontoSerie[];
   topProdutos: LinhaProduto[];
   topParceiros: LinhaParceiro[];
-  mei: AlertaMei;
 }
 
 function aReceberAgora(hoje: ISODate): ResumoAReceber {
@@ -307,11 +303,10 @@ const inicioMemo = memoPorChave((hoje): PainelInicio => {
     serie: serieUltimosMeses(dados, hoje, custos, 6),
     topProdutos: top5Produtos(produtosDoPeriodo(periodoMes)),
     topParceiros: top5Parceiros(parceirosDoPeriodo(periodoMes)),
-    mei: anoEMei(Number(hoje.slice(0, 4)), hoje).mei,
   };
 });
 
-/** Tudo o que o Início mostra: Hoje, Este mês × mês anterior, 6 meses por canal, top 5 e MEI. */
+/** Tudo o que o Início mostra: Hoje, Este mês × mês anterior, 6 meses por canal e top 5. */
 export function painelInicio(hoje: ISODate = hojeISO()): PainelInicio {
   return inicioMemo(hoje);
 }
@@ -319,7 +314,7 @@ export function painelInicio(hoje: ISODate = hojeISO()): PainelInicio {
 // ---------------------------------------------------------------- CSV de cada relatório
 
 export interface ArquivoCSV {
-  /** Nome do relatório (o arquivo vira octa-<nome>-<data>.csv). */
+  /** Nome do relatório (o arquivo vira 3d-gestao-<nome>-<data>.csv). */
   nome: string;
   texto: string;
 }
@@ -333,7 +328,6 @@ export function csvResultado(p: Intervalo): ArquivoCSV {
     { item: 'Receita - parceiros (sua parte)', valor: r.receitaPorCanal.parceiros },
     { item: 'Receita - pedidos', valor: r.receitaPorCanal.pedidos },
     { item: 'Receita total', valor: r.receitaCentavos },
-    { item: '(-) Impostos', valor: -r.impostosCentavos },
     { item: '(-) Custo dos produtos vendidos', valor: -r.cmvCentavos },
     { item: '(-) Perdas', valor: -r.perdasCentavos },
     { item: '(-) Custos fixos', valor: -r.custosFixosCentavos },
@@ -364,7 +358,6 @@ export function csvCanais(p: Intervalo): ArquivoCSV {
     { titulo: 'Vendido (R$)', valor: (l) => l.vendidoCentavos, tipo: 'centavos' },
     { titulo: 'Taxas de cartão (R$)', valor: (l) => l.taxasCentavos, tipo: 'centavos' },
     { titulo: 'Receita (R$)', valor: (l) => l.receitaCentavos, tipo: 'centavos' },
-    { titulo: 'Impostos (R$)', valor: (l) => l.impostosCentavos, tipo: 'centavos' },
     { titulo: 'Custo dos produtos (R$)', valor: (l) => l.custoCentavos, tipo: 'centavos' },
     { titulo: 'Lucro antes de perdas e fixos (R$)', valor: (l) => l.lucroCentavos, tipo: 'centavos' },
   ];
@@ -561,5 +554,5 @@ export function csvAno(ano: number, hoje: ISODate = hojeISO()): ArquivoCSV {
     { titulo: 'Total vendido nos parceiros - bruto (R$)', valor: (l) => l.totalVendidoParceirosCentavos, tipo: 'centavos' },
     { titulo: 'Lucro estimado (R$)', valor: (l) => l.lucroCentavos, tipo: 'centavos' },
   ];
-  return { nome: `receita-${ano}`, texto: paraCSV(anoEMei(ano, hoje).meses, colunas) };
+  return { nome: `receita-${ano}`, texto: paraCSV(resumoDoAno(ano, hoje).meses, colunas) };
 }

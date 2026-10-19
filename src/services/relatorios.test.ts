@@ -14,7 +14,7 @@ import { carregarExemplo, DATA_VISITA_BC } from './exemplo.ts';
 import { csvPlanilha, PLANILHAS } from './exportacao.ts';
 import { duplicarOrcamento, moverEtapa } from './pedidos.ts';
 import {
-  anoEMei,
+  resumoDoAno,
   csvCanais,
   csvResultado,
   dinheiroDoPeriodo,
@@ -87,7 +87,6 @@ describe('Etapa 5 — resultado de outubro soma os exemplos sem contar nada duas
     assert.equal(r.receitaCentavos, 2880 + 25900 + 11790);
     assert.equal(r.totalVendidoParceirosCentavos, 8400 + 12600 + 14000);
     assert.equal(r.taxasCartaoCentavos, 120);
-    assert.equal(r.impostosCentavos, 0);
 
     // Custo dos produtos vendidos: snapshots de cada venda, acerto e pedido.
     const cmvDireta = toCents(2 * kb);
@@ -173,8 +172,7 @@ describe('Etapa 5 — resultado de outubro soma os exemplos sem contar nada duas
     assert.equal(p.topParceiros[0].parceiroId, parceiro('Academia Alfa').id);
     assert.equal(p.hoje.aReceber.parceirosCentavos, 3200);
     assert.equal(p.hoje.aReceber.pedidosCentavos, 0);
-    assert.equal(p.mei.nivel, 'ok');
-    assert.equal(anoEMei(2026, '2026-10-25').receita.receitaCentavos, p.mes.atual.receitaCentavos);
+    assert.equal(resumoDoAno(2026, '2026-10-25').receita.receitaCentavos, p.mes.atual.receitaCentavos);
   });
 
   it('produtos parados: com estoque e sem venda no período', () => {

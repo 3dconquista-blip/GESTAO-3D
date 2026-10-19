@@ -21,7 +21,7 @@ function exemploA(): Fixture {
   const impId = db.tx((t) => {
     t.config((c) => ({
       ...c,
-      custos: { ...c.custos, tarifaKwh: 1, valorHora: 25, taxaFalhaPct: 10, impostoPct: 0, margemDesejadaPct: 50, arredondamento: 'noventa', taxaCartaoPct: 4 },
+      custos: { ...c.custos, tarifaKwh: 1, valorHora: 25, taxaFalhaPct: 10, margemDesejadaPct: 50, arredondamento: 'noventa', taxaCartaoPct: 4 },
     }));
     return t.insert('impressoras', { nome: 'A1 mini', modelo: 'A1 mini', valorPago: 2000, vidaUtilH: 4000, potenciaW: 80, manutencaoH: 0.1, ativa: true }).id;
   });

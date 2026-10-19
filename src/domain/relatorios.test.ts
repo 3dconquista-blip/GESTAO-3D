@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Pagamento } from '../data/types.ts';
-import { alertaMei, custosFixosNoPeriodo, dinheiroQueEntrou, mesesDoIntervalo, periodoDoMes, ratear, variacaoPct } from './relatorios.ts';
+import { custosFixosNoPeriodo, dinheiroQueEntrou, mesesDoIntervalo, periodoDoMes, ratear, variacaoPct } from './relatorios.ts';
 import { celulaCSV, centavosCSV, escaparCSV, nomeArquivoCSV, numeroCSV, paraCSV } from './csv.ts';
 
 const pg = (p: Partial<Pagamento>): Pagamento =>
@@ -30,13 +30,6 @@ describe('relatórios — utilidades', () => {
   it('variação: null quando o anterior é zero', () => {
     assert.equal(variacaoPct(150, 100), 50);
     assert.equal(variacaoPct(100, 0), null);
-  });
-
-  it('alerta do MEI: amarelo acima de 80%, vermelho acima do limite', () => {
-    assert.equal(alertaMei(6_000_000, 8_100_000).nivel, 'ok');
-    assert.equal(alertaMei(6_500_000, 8_100_000).nivel, 'atencao');
-    assert.equal(alertaMei(8_200_000, 8_100_000).nivel, 'acima');
-    assert.equal(alertaMei(8_200_000, 8_100_000).restanteCentavos, 0);
   });
 
   it('dinheiro que entrou: estorno desconta na data dele; devolução desconta; repasse fica à parte', () => {
@@ -84,6 +77,6 @@ describe('CSV para o Excel em português', () => {
       { titulo: 'Preço (R$)', valor: (l) => l.v, tipo: 'centavos' },
     ]);
     assert.equal(t, '﻿Produto;Preço (R$)\r\nKettlebell;15,00\r\n');
-    assert.equal(nomeArquivoCSV('Vendas por canal', '2026-10-16'), 'octa-vendas-por-canal-2026-10-16.csv');
+    assert.equal(nomeArquivoCSV('Vendas por canal', '2026-10-16'), '3d-gestao-vendas-por-canal-2026-10-16.csv');
   });
 });

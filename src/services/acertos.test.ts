@@ -91,7 +91,7 @@ describe('Exemplo B — acerto 70/30 quinzenal (Academia Alfa)', () => {
     const msg = textoComprovante(a.id);
     assert.match(msg, /Total vendido: R\$ 126,00/);
     assert.match(msg, /Parte de vocês \(30%\): R\$ 37,80/);
-    assert.match(msg, /Parte OCTA \(70%\): R\$ 88,20/);
+    assert.match(msg, /Parte 3D gestão \(70%\): R\$ 88,20/);
     assert.match(msg, /Total a acertar: R\$ 88,20/);
     assert.match(msg, /Próximo acerto: 31\/10\/2026/);
     assert.match(msg, /Ficaram 24 peças no expositor/);

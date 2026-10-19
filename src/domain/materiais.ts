@@ -79,9 +79,12 @@ export function custoMedioSemCompra(saldoAtual: number, custoAtual: number, qtdC
   return Number.isFinite(v) && v >= 0 ? v : null;
 }
 
-/** "Pesei o carretel": peso na balança − peso do carretel vazio = gramas restantes (nunca menor que zero). */
-export function gramasRestantes(pesoBalancaG: number, taraCarretelG: number | undefined): number {
-  return Math.max(0, roundTo((pesoBalancaG || 0) - (taraCarretelG || 0), 2));
+/** Peso do carretel vazio (g), igual para todo filamento: descontado em "Pesei o carretel". */
+export const TARA_CARRETEL_G = 170;
+
+/** "Pesei o carretel": peso na balança − carretel vazio (170 g) = gramas restantes (nunca menor que zero). */
+export function gramasRestantes(pesoBalancaG: number, taraCarretelG: number = TARA_CARRETEL_G): number {
+  return Math.max(0, roundTo((pesoBalancaG || 0) - taraCarretelG, 2));
 }
 
 export type StatusMaterial = 'ok' | 'baixo' | 'negativo';

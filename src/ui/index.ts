@@ -1,4 +1,4 @@
-// Kit de interface do OCTA. Importe daqui: import { Botao, Pagina, ... } from '../../ui/index.ts';
+// Kit de interface do 3D gestão. Importe daqui: import { Botao, Pagina, ... } from '../../ui/index.ts';
 export * from './Icon.tsx';
 export * from './controls.tsx';
 export * from './layout.tsx';

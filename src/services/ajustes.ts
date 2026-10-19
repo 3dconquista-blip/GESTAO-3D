@@ -108,6 +108,7 @@ const FLUXO_POR_REF: Record<string, string> = {
   producao: 'Esta movimentação é de uma produção. Para desfazer, estorne a produção.',
   acerto: 'Esta movimentação é de um acerto. Para corrigir, reabra o último acerto do parceiro.',
   pedido: 'Esta movimentação é de um pedido. Corrija pelo próprio pedido.',
+  exclusao: 'Esta movimentação tirou do estoque as peças de um produto excluído.',
 };
 
 function bloqueio(mov: MovEstoque | undefined, movs: MovEstoque[]): string | null {

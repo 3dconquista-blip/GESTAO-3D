@@ -1,6 +1,7 @@
 // Backup completo em JSON (Configurações > Dados): exportar e importar num banco vazio ou existente.
 // Importar substitui TUDO o que está no aparelho pelo conteúdo do arquivo.
 import { db, type Snapshot } from '../data/db.ts';
+import { NOME_APP } from '../data/defaults.ts';
 import type { Base, Config, NomeColecao } from '../data/types.ts';
 import { COLECOES } from '../data/types.ts';
 import { ErroNegocio } from './estoque.ts';
@@ -27,9 +28,9 @@ export async function exportarBackup(): Promise<string> {
   return JSON.stringify(arquivo);
 }
 
-/** Nome sugerido do arquivo: octa-backup-2026-10-17.json */
+/** Nome sugerido do arquivo: 3d-gestao-backup-2026-10-17.json */
 export function nomeArquivoBackup(hoje: string): string {
-  return `octa-backup-${hoje}.json`;
+  return `3d-gestao-backup-${hoje}.json`;
 }
 
 export interface ValidacaoBackup {
@@ -41,7 +42,7 @@ export interface ValidacaoBackup {
   arquivo: ArquivoBackup | null;
 }
 
-/** Confere se o texto é um backup do OCTA antes de importar. */
+/** Confere se o texto é um backup do app antes de importar (o campo interno continua 'octa'). */
 export function validarBackup(texto: string): ValidacaoBackup {
   const erros: string[] = [];
   let dados: unknown;
@@ -51,7 +52,7 @@ export function validarBackup(texto: string): ValidacaoBackup {
     return { ok: false, erros: ['O arquivo não é um backup válido (não é JSON).'], resumo: {}, exportadoEm: null, arquivo: null };
   }
   const a = dados as Partial<ArquivoBackup>;
-  if (!a || a.app !== 'octa') erros.push('Este arquivo não é um backup do OCTA.');
+  if (!a || a.app !== 'octa') erros.push(`Este arquivo não é um backup do ${NOME_APP}.`);
   if (a && a.versao !== 1) erros.push('Versão de backup desconhecida.');
   if (!a?.config || typeof a.config !== 'object') erros.push('O backup não tem as configurações.');
   const resumo: Partial<Record<NomeColecao, number>> = {};

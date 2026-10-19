@@ -1,6 +1,15 @@
 // Valores padrão (seção 6.1, 8, 9 e 12 da especificação).
 import type { Canal, ChaveMensagem, Config, Impressora, Novo } from './types.ts';
 
+/** Nome do app mostrado na interface. (Identificadores internos — banco, backup, cache — continuam 'octa'.) */
+export const NOME_APP = '3D gestão';
+
+/** Ajusta configurações gravadas por versões antigas: o nome padrão da empresa era o antigo nome do app. */
+export function migrarConfig(c: Config): Config {
+  if (c.empresa?.nome === 'OCTA') return { ...c, empresa: { ...c.empresa, nome: NOME_APP } };
+  return c;
+}
+
 export const CANAIS_PADRAO: Canal[] = [
   { id: 'direto_pix', nome: 'Direto PIX/dinheiro', tipo: 'direto', comissaoPct: 0, tarifaFixaCentavos: 0, ativo: true },
   { id: 'direto_cartao', nome: 'Direto cartão', tipo: 'cartao', comissaoPct: 0, tarifaFixaCentavos: 0, ativo: true },
@@ -65,7 +74,7 @@ export function configPadrao(): Config {
     criadoEm: agora,
     atualizadoEm: agora,
     empresa: {
-      nome: 'OCTA',
+      nome: NOME_APP,
       corPrincipal: '#2B4A6B',
       whatsapp: '',
       chavePix: '',
@@ -78,13 +87,11 @@ export function configPadrao(): Config {
       valorHora: 20,
       valorHoraModelagem: 40,
       taxaFalhaPct: 5,
-      impostoPct: 0,
       margemDesejadaPct: 50,
       margemMinimaPct: 30,
       arredondamento: 'noventa',
       taxaCartaoPct: 3.5,
       custosFixosMensaisCentavos: 8205,
-      limiteMeiCentavos: 8100000,
     },
     canais: CANAIS_PADRAO.map((c) => ({ ...c })),
     pedidos: {

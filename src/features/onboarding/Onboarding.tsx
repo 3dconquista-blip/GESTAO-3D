@@ -2,7 +2,7 @@
 // com as opções "Carregar dados de exemplo" e "Restaurar um backup" (aparelho novo ou banco vazio).
 import { useState } from 'preact/hooks';
 import { navegar } from '../../app/router.ts';
-import { MODELOS_IMPRESSORA } from '../../data/defaults.ts';
+import { MODELOS_IMPRESSORA, NOME_APP } from '../../data/defaults.ts';
 import type { TipoFilamento } from '../../data/types.ts';
 import { custoHoraMaquina } from '../../domain/pricing.ts';
 import { formatDataHora, formatReais } from '../../lib/format.ts';
@@ -33,7 +33,7 @@ const PASSOS = ['Sua empresa', 'Impressoras', 'Filamentos'];
 
 export function Onboarding() {
   const [passo, setPasso] = useState(0);
-  const [empresa, setEmpresa] = useState({ nome: 'OCTA', chavePix: '', nomePix: '', whatsapp: '' });
+  const [empresa, setEmpresa] = useState({ nome: NOME_APP, chavePix: '', nomePix: '', whatsapp: '' });
   const [impressoras, setImpressoras] = useState<ImpressoraRascunho[]>([novaImpressora('A1 mini')]);
   const [filamentos, setFilamentos] = useState<FilamentoRascunho[]>([novoFilamento()]);
   const [erro, setErro] = useState<string | null>(null);
@@ -107,7 +107,7 @@ export function Onboarding() {
       <header class="onb-topo">
         <Logo tamanho={48} />
         <div>
-          <h1>Bem-vindo ao OCTA</h1>
+          <h1>Bem-vindo ao {NOME_APP}</h1>
           <p>Em 3 passos o app fica pronto para calcular custos e preços.</p>
         </div>
       </header>
@@ -121,7 +121,7 @@ export function Onboarding() {
             </Botao>
           </div>
           <div class="onb-exemplo">
-            <span>Já usa o OCTA em outro aparelho?</span>
+            <span>Já usa o {NOME_APP} em outro aparelho?</span>
             <label class="btn btn-fantasma">
               <span>Restaurar um backup</span>
               <input

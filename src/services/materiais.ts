@@ -13,6 +13,7 @@ import {
   custoDaCompra,
   custoMedioSemCompra,
   gramasRestantes,
+  TARA_CARRETEL_G,
   resumoCompra,
   unidadeCompra,
   type ResumoCompra,
@@ -128,8 +129,6 @@ export interface DadosMaterial {
   custoMedio?: number;
   /** Filamento: gramas (padrão da configuração, 250). Insumo: unidades (padrão 0). */
   minimo?: number;
-  /** Peso do carretel vazio em gramas (padrão 0 = refil). */
-  taraCarretelG?: number;
   /** Só no cadastro: saldo que já existe (gramas ou unidades). Gera um ajuste "Saldo inicial". */
   saldoInicial?: number;
   /** Data do ajuste de saldo inicial (padrão hoje). */
@@ -163,9 +162,6 @@ export function salvarMaterial(dados: DadosMaterial): Material {
     const custoMedio = numeroNaoNegativo(dados.custoMedio, atual?.custoMedio ?? 0, 'O custo não pode ser negativo.');
     const minimoPadrao = atual?.minimo ?? (filamento ? db.config.estoque.minimoFilamentoPadraoG : 0);
     const minimo = numeroNaoNegativo(dados.minimo, minimoPadrao, 'O mínimo não pode ser negativo.');
-    const tara = filamento
-      ? numeroNaoNegativo(dados.taraCarretelG, atual?.taraCarretelG ?? 0, 'O peso do carretel vazio não pode ser negativo.')
-      : undefined;
     const unidade = filamento ? 'g' : texto(dados.unidade) || atual?.unidade || 'un';
 
     const campos = {
@@ -178,7 +174,6 @@ export function salvarMaterial(dados: DadosMaterial): Material {
       unidade,
       custoMedio: round4(custoMedio),
       minimo,
-      taraCarretelG: tara,
     };
 
     if (atual) {
@@ -274,7 +269,7 @@ export interface PreviaPesagem {
 function calcularPesagem(material: Material, pesoBalancaG: number, saldoAtual: number): PreviaPesagem {
   if (material.tipo !== 'filamento') throw new ErroNegocio('Só filamentos podem ser pesados.');
   if (!Number.isFinite(pesoBalancaG) || pesoBalancaG < 0) throw new ErroNegocio('Informe o peso na balança, em gramas.');
-  const tara = material.taraCarretelG || 0;
+  const tara = TARA_CARRETEL_G;
   const g = gramasRestantes(pesoBalancaG, tara);
   return { material, taraCarretelG: tara, gramasRestantes: g, saldoAtual, delta: roundTo(g - saldoAtual, 2) };
 }
