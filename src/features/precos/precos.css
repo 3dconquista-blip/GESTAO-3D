@@ -24,3 +24,4 @@
 /* Ficha do produto com uma mesa só: sem moldura; só gramas quando há um tipo de filamento. */
 .ficha-mesa-unica { border: 0; padding: 0; background: transparent; }
 @media (min-width: 560px) { .ficha-item.ficha-item-so-gramas { grid-template-columns: minmax(0, 1fr) 36px; } }
+.importar-fatiador { justify-content: center; border-style: dashed; width: 100%; }

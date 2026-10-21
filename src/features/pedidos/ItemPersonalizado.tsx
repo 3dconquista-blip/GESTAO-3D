@@ -11,6 +11,7 @@ import type { FichaTecnica } from '../../domain/pricing.ts';
 import { formatDuracao, formatGramas, formatQtd, formatReais } from '../../lib/format.ts';
 import { Aviso, Botao, Campo, Escolha, MaisDetalhes, Numero, Texto } from '../../ui/index.ts';
 import { ComponentesEditor, FichaTecnicaEditor, fichaVazia, tiposDisponiveis } from '../precos/componentes.tsx';
+import { ImportarFatiador, fichaDaImportacao } from '../precos/ImportarFatiador.tsx';
 import './pedidos.css';
 
 export interface PecaPersonalizada {
@@ -67,9 +68,24 @@ export function ItemPersonalizadoEditor({ valor, onChange, custo }: { valor: Pec
     .join(' · ');
 
   const descricao = (
-    <Campo rotulo="Descrição da peça">
-      <Texto value={valor.descricao} onInput={(v) => onChange({ descricao: v })} placeholder="Ex.: chaveiro com nome" />
-    </Campo>
+    <>
+      <Campo rotulo="Descrição da peça">
+        <Texto value={valor.descricao} onInput={(v) => onChange({ descricao: v })} placeholder="Ex.: chaveiro com nome" />
+      </Campo>
+      <ImportarFatiador
+        onImportar={(imp) => {
+          // Uma mesa com um filamento cabe no editor simples (quantidade = peças da mesa); senão, ficha completa.
+          const novaFicha = fichaDaImportacao(imp, ficha);
+          const simples = imp.mesas.length === 1 && imp.mesas[0].filamentos.length <= 1;
+          onChange({
+            ficha: novaFicha,
+            quantidade: imp.mesas[0]?.pecas ?? quantidade,
+            completo: !simples,
+            ...(!valor.descricao.trim() && imp.nome ? { descricao: imp.nome } : {}),
+          });
+        }}
+      />
+    </>
   );
   const custoTexto = (
     <p class="muted ped-item-porpeca">

@@ -9,6 +9,8 @@ import { nomeMaterial, nomeProduto } from '../../data/selectors.ts';
 import { ROTULO_MOTIVO_PERDA } from '../../data/defaults.ts';
 import { nomeArquivoCSV } from '../../domain/csv.ts';
 import { numeroPedido } from '../../domain/pedidos.ts';
+import type { Gasto } from '../../data/types.ts';
+import { cancelarGasto } from '../../services/gastos.ts';
 import { CANAIS_RECEITA, ROTULO_CANAL_RECEITA, somarTotais, type Intervalo, type LinhaParceiro, type LinhaPerda, type LinhaProduto, type Totais } from '../../domain/relatorios.ts';
 import { diffDias, hojeISO, inicioDoMes, periodoPorChave, type PeriodoChave } from '../../lib/dates.ts';
 import { formatBRL, formatData, formatKg, formatPct, formatQtd, formatReais } from '../../lib/format.ts';
@@ -99,6 +101,15 @@ const tomValor = (v: number) => (v < 0 ? 'txt-ruim' : undefined);
 
 // ---------------------------------------------------------------- Resultado
 
+function tentarCancelarGasto(id: string) {
+  try {
+    cancelarGasto(id);
+    avisar('Gasto desfeito');
+  } catch (e) {
+    avisar(e instanceof Error ? e.message : String(e), 'ruim');
+  }
+}
+
 function nomePerda(l: LinhaPerda): string {
   if (l.tipo === 'produto') return `${formatQtd(l.quantidade)} × ${nomeProduto(l.refId)}`;
   if (l.tipo === 'material') {
@@ -121,6 +132,21 @@ function SecaoResultado({ p }: { p: Intervalo }) {
   const r = resultadoDoPeriodo(p);
   const dinheiro = dinheiroDoPeriodo(p);
   const diasPeriodo = diffDias(p.de, p.ate) + 1;
+  const colunasGasto: Coluna<Gasto>[] = [
+    { id: 'desc', rotulo: 'Gasto', render: (g) => g.descricao, principal: true },
+    { id: 'data', rotulo: 'Data', render: (g) => formatData(g.data) },
+    { id: 'valor', rotulo: 'Valor', render: (g) => brl(g.valorCentavos), alinhar: 'dir' },
+    {
+      id: 'acao',
+      rotulo: '',
+      alinhar: 'dir',
+      render: (g) => (
+        <Botao pequeno variante="fantasma" onClick={() => tentarCancelarGasto(g.id)}>
+          Desfazer
+        </Botao>
+      ),
+    },
+  ];
   const colunasPerda: Coluna<LinhaPerda>[] = [
     { id: 'item', rotulo: 'Item', render: nomePerda, principal: true },
     { id: 'data', rotulo: 'Data', render: (l) => formatData(l.data) },
@@ -148,6 +174,7 @@ function SecaoResultado({ p }: { p: Intervalo }) {
               { rotulo: '(−) Custo dos produtos vendidos', valor: brl(-r.cmvCentavos) },
               { rotulo: '(−) Perdas', valor: brl(-r.perdasCentavos) },
               { rotulo: diasPeriodo < 28 ? `(−) Custos fixos (proporcional a ${diasPeriodo} dias)` : '(−) Custos fixos', valor: brl(-r.custosFixosCentavos) },
+              r.gastosCentavos ? { rotulo: '(−) Gastos avulsos', valor: brl(-r.gastosCentavos) } : null,
               { rotulo: '(=) Lucro estimado', valor: brl(r.lucroCentavos), destaque: true, tom: r.lucroCentavos < 0 ? 'ruim' : 'ok' },
             ]}
           />
@@ -165,6 +192,19 @@ function SecaoResultado({ p }: { p: Intervalo }) {
             ]}
           />
           <Tabela colunas={colunasPerda} linhas={r.perdas.linhas} chave={(l) => `${l.tipo}-${l.refId}-${l.data}-${l.motivo}-${l.valorCentavos}`} vazio={<p class="muted">Nenhuma perda no período.</p>} />
+      </MaisDetalhes>
+      <MaisDetalhes titulo="Gastos avulsos" resumo={r.gastos.length ? `${brl(r.gastosCentavos)} em ${r.gastos.length} gasto(s)` : 'nenhum no período'}>
+        <Tabela
+          colunas={colunasGasto}
+          linhas={r.gastos}
+          chave={(g) => g.id}
+          vazio={<p class="muted">Nenhum gasto avulso no período. Os custos fixos do mês ficam em Configurações &gt; Custos e preços.</p>}
+        />
+        <div>
+          <Botao pequeno variante="secundario" icone="plus" href="/gastos/novo">
+            Lançar gasto
+          </Botao>
+        </div>
       </MaisDetalhes>
       <MaisDetalhes titulo="Por canal" resumo={`vendido nos parceiros ${brl(r.totalVendidoParceirosCentavos)}`}>
         <SecaoCanais p={p} />

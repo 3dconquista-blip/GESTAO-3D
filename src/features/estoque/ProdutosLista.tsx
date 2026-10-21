@@ -3,7 +3,7 @@ import { useState } from 'preact/hooks';
 import { navegar, type TelaProps } from '../../app/router.ts';
 import { db } from '../../data/db.ts';
 import { useDb } from '../../data/hooks.ts';
-import { custoProduto, custosDoProduto, saldosDoProduto, statusMargemProduto } from '../../data/selectors.ts';
+import { custoProduto, custosDoProduto, minimoDoProduto, saldosDoProduto, statusMargemProduto } from '../../data/selectors.ts';
 import type { ID, Produto } from '../../data/types.ts';
 import { simular, type StatusMargem } from '../../domain/pricing.ts';
 import { combinaBusca, formatBRL, formatPct, formatQtd, formatReais } from '../../lib/format.ts';
@@ -164,7 +164,7 @@ export function ProdutosLista(_props: TelaProps) {
       alinhar: 'dir',
       render: (p) => {
         const s = saldosDoProduto(p.id).casa;
-        return <span class={s < 0 ? 'txt-ruim negrito' : s < p.estoqueMinimo ? 'txt-atencao negrito' : ''}>{formatQtd(s)}</span>;
+        return <span class={s < 0 ? 'txt-ruim negrito' : s < minimoDoProduto(p).minimo ? 'txt-atencao negrito' : ''}>{formatQtd(s)}</span>;
       },
     },
     { id: 'parceiros', rotulo: 'Nos parceiros', alinhar: 'dir', render: (p) => formatQtd(saldosDoProduto(p.id).parceiros) },

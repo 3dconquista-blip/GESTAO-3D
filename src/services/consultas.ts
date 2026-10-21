@@ -3,7 +3,7 @@
 // Junta os dados do banco (db + selectors) e chama as funções puras de domain/. NUNCA grava.
 // Resultados memoizados enquanto db.version não mudar: não altere os objetos devolvidos.
 import { db } from '../data/db.ts';
-import { memoPorChave, saldoCasa, saldoMaterial, saldoNoParceiro, saldosEstoque } from '../data/selectors.ts';
+import { memoPorChave, minimoDoProduto, saldoCasa, saldoMaterial, saldoNoParceiro, saldosEstoque } from '../data/selectors.ts';
 import type { ID, ISODate, Parceiro } from '../data/types.ts';
 import { parceiroDoLocal } from '../data/types.ts';
 import { hojeISO } from '../lib/dates.ts';
@@ -97,6 +97,7 @@ const imprimirMemo = memoPorChave(
       saldoMaterial,
       materiais: db.all('materiais'),
       pedidosPersonalizados: db.all('pedidos').filter((p) => ETAPAS_IMPRIMIR.includes(p.etapa)),
+      minimo: (p) => minimoDoProduto(p).minimo,
     }),
 );
 
@@ -116,6 +117,7 @@ const alertasMemo = memoPorChave(
       hoje,
       diasSemVenda: db.config.estoque?.diasSemVendaAlerta,
       parceiros: db.all('parceiros'),
+      minimo: (p) => minimoDoProduto(p, hoje).minimo,
     }),
 );
 

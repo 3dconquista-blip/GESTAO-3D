@@ -160,6 +160,8 @@ export interface EntradaOQueImprimir {
   materiais: Material[];
   /** Pedidos "Em produção" (outras etapas são ignoradas). */
   pedidosPersonalizados: Pedido[];
+  /** Estoque mínimo em Casa de cada produto (padrão: o informado no produto; o app passa o automático, decisão 102). */
+  minimo?: (produto: Produto) => number;
 }
 
 function motivoDoItem(saldo: number, minimo: number, reposicao: number, reservado: number): string {
@@ -209,7 +211,7 @@ export function listaOQueImprimir(e: EntradaOQueImprimir): ListaImprimir {
   for (const produto of e.produtos) {
     if (produto.arquivado) continue;
     const saldo = e.saldoCasa(produto.id);
-    const minimo = Math.max(0, produto.estoqueMinimo || 0);
+    const minimo = Math.max(0, e.minimo ? e.minimo(produto) : produto.estoqueMinimo || 0);
     let repo = 0;
     for (const p of ativos) {
       repo += reposicaoNoParceiro(produto.id, p, historicos.get(p.id) ?? [], e.saldoParceiro(produto.id, p.id));

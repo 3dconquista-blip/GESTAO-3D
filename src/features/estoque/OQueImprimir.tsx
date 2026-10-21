@@ -1,5 +1,6 @@
 // "O que imprimir" (7.5): do mais urgente ao menos urgente, com mesas, tempo e filamento necessário.
 // necessidade = estoque mínimo em Casa + reposição prevista nos parceiros + reservado em pedidos − saldo em Casa.
+// "Imprimi" registra a produção com um toque, na cor que já viria marcada, com "Desfazer" (decisão 104).
 import type { TelaProps } from '../../app/router.ts';
 import { ROTULO_ETAPA } from '../../data/defaults.ts';
 import { useDb } from '../../data/hooks.ts';
@@ -8,7 +9,9 @@ import type { ItemImprimir } from '../../domain/oQueImprimir.ts';
 import { formatData, formatDuracao, formatGramas, formatQtd } from '../../lib/format.ts';
 import { diffDias, hojeISO } from '../../lib/dates.ts';
 import { oQueImprimirAtual } from '../../services/consultas.ts';
-import { Aviso, Botao, Cartao, ItemLista, Lista, Pagina, Selo, Vazio } from '../../ui/index.ts';
+import { estornarProducao, registrarProducao } from '../../services/producao.ts';
+import { Aviso, Botao, Cartao, ItemLista, Lista, Pagina, Selo, Vazio, avisar } from '../../ui/index.ts';
+import { executar } from './comum.tsx';
 import { EstoqueAbas } from './EstoqueAbas.tsx';
 import { FotoProduto } from './ProdutosLista.tsx';
 
@@ -22,6 +25,20 @@ const URGENCIA: Record<ItemImprimir['urgencia'], { texto: string; tom: 'ruim' | 
 function CartaoItem({ item }: { item: ItemImprimir }) {
   const u = URGENCIA[item.urgencia];
   const p = item.produto;
+  const mesas = item.mesas[0]?.mesas ?? 1;
+  const qtd = mesas * (item.mesas[0]?.pecasPorMesa ?? 1);
+  const imprimi = () => {
+    try {
+      const prod = registrarProducao({ produtoId: p.id, qtdBoa: qtd });
+      const cores = Array.from(new Set(Object.values(prod.cores ?? {}))).map(nomeMaterial).join(' + ');
+      avisar(`${formatQtd(qtd)} ${p.nome} em Casa${cores ? ` · ${cores}` : ''}`, 'ok', {
+        rotulo: 'Desfazer',
+        onClick: () => executar(() => estornarProducao(prod.id, 'Desfeito logo após registrar'), 'Produção desfeita'),
+      });
+    } catch (e) {
+      avisar(e instanceof Error ? e.message : String(e), 'ruim');
+    }
+  };
   return (
     <Cartao tom={u.tom === 'info' ? undefined : u.tom === 'ruim' ? 'ruim' : 'atencao'}>
       <div class="imp-item">
@@ -41,7 +58,7 @@ function CartaoItem({ item }: { item: ItemImprimir }) {
         <div class="imp-detalhes">
           <Selo tom={u.tom}>{u.texto}</Selo>
           <span>
-            Em Casa: <strong>{formatQtd(item.saldoCasa)}</strong> · mínimo {formatQtd(item.estoqueMinimo)}
+            Em Casa: <strong>{formatQtd(item.saldoCasa)}</strong> · mínimo {formatQtd(item.estoqueMinimo)}{item.produto.estoqueMinimo > 0 ? '' : ' (automático)'}
           </span>
           {item.reposicaoPrevista > 0 && <span>Parceiros: {formatQtd(item.reposicaoPrevista, 1)}</span>}
           {item.reservado > 0 && <span>Pedidos: {formatQtd(item.reservado)}</span>}
@@ -67,9 +84,12 @@ function CartaoItem({ item }: { item: ItemImprimir }) {
             </span>
           ))}
         </div>
-        <div>
-          <Botao pequeno variante="secundario" icone="impressora" href={`/producao/nova?produto=${p.id}&mesas=${item.mesas[0]?.mesas ?? 1}`}>
-            Registrar produção
+        <div class="imp-acoes">
+          <Botao pequeno variante="primario" icone="check" onClick={imprimi}>
+            Imprimi {formatQtd(qtd)}
+          </Botao>
+          <Botao pequeno variante="fantasma" href={`/producao/nova?produto=${p.id}&mesas=${mesas}`}>
+            Outra cor ou quantidade
           </Botao>
         </div>
       </div>

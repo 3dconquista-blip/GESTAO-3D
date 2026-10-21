@@ -2,12 +2,14 @@
 import type { Cents } from '../lib/money.ts';
 import { round4 } from '../lib/money.ts';
 import { db } from './db.ts';
-import type { ID, LocalId, Material, ParametrosCusto, Parceiro, Produto, TipoFilamento } from './types.ts';
+import type { ID, ISODate, LocalId, Material, ParametrosCusto, Parceiro, Produto, TipoFilamento } from './types.ts';
 import { CASA, localParceiro } from './types.ts';
 import type { ComposicaoCusto, ContextoCusto, StatusMargem } from '../domain/pricing.ts';
 import { composicaoCusto, custosComMargem, statusMargem } from '../domain/pricing.ts';
 import { calcularSaldos, calcularSaldosMateriais, resumoSaldos, type SaldosProduto } from '../domain/stock.ts';
 import { custoKgDoTipo } from '../domain/filamento.ts';
+import { minimoAutomatico, minimoEfetivo, vendasDiretasRecentes } from '../domain/minimo.ts';
+import { hojeISO } from '../lib/dates.ts';
 
 /** Memoiza o resultado enquanto db.version não mudar. */
 export function memo<T>(fn: () => T): () => T {
@@ -79,6 +81,13 @@ export function statusMargemProduto(p: Produto): StatusMargem {
 // ---------------------------------------------------------------- Estoque
 
 export const saldosEstoque = memo(() => calcularSaldos(db.all('movEstoque')));
+
+const vendasRecentes = memoPorChave((hoje) => vendasDiretasRecentes(db.all('movEstoque'), hoje));
+
+/** Estoque mínimo em Casa que vale para o produto: o informado ou, sem ele, o automático (decisão 102). */
+export function minimoDoProduto(p: Pick<Produto, 'id' | 'estoqueMinimo'>, hoje: ISODate = hojeISO()): { minimo: number; automatico: boolean } {
+  return minimoEfetivo(p, minimoAutomatico(vendasRecentes(hoje).get(p.id) || 0));
+}
 
 export function saldosDoProduto(produtoId: ID): SaldosProduto {
   return resumoSaldos(saldosEstoque().get(produtoId));

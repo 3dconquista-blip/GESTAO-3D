@@ -4,7 +4,7 @@ import { navegar, type TelaProps } from '../../app/router.ts';
 import { db } from '../../data/db.ts';
 import { ROTULO_TIPO_MOV } from '../../data/defaults.ts';
 import { useDb } from '../../data/hooks.ts';
-import { composicaoProduto, custoProduto, custosDoProduto, margemDoProduto, nomeMaterial, saldosDoProduto } from '../../data/selectors.ts';
+import { composicaoProduto, custoProduto, custosDoProduto, margemDoProduto, minimoDoProduto, nomeMaterial, saldosDoProduto } from '../../data/selectors.ts';
 import type { LocalId, MovEstoque } from '../../data/types.ts';
 import { CASA, parceiroDoLocal } from '../../data/types.ts';
 import { tipoDoSlot } from '../../domain/filamento.ts';
@@ -36,6 +36,7 @@ export function ProdutoDetalhe({ params }: TelaProps) {
   const custo = custoProduto(p.id);
   const comp = composicaoProduto(p.id);
   const saldos = saldosDoProduto(p.id);
+  const minimo = minimoDoProduto(p);
   const sim = p.precoEtiquetaCentavos ? simular(p.precoEtiquetaCentavos, custo, db.config.canais, custosDoProduto(p)) : null;
   const abaixo = sim ? sim.linhas.filter((l) => l.abaixoMinima || l.prejuizo).map((l) => l.canal.nome) : [];
   const movs = db
@@ -151,7 +152,12 @@ export function ProdutoDetalhe({ params }: TelaProps) {
       {alertaLicenca(p) && <Aviso tom="atencao">Modelo de terceiro: confira se a licença permite vender.{p.linkModelo && <> <a href={p.linkModelo} target="_blank" rel="noopener">Abrir o modelo</a></>}</Aviso>}
 
       <div class="indicadores">
-        <Indicador rotulo="Em Casa" valor={formatQtd(saldos.casa)} tom={saldos.casa < 0 ? 'ruim' : saldos.casa < p.estoqueMinimo ? 'atencao' : undefined} detalhe={p.estoqueMinimo ? `mínimo ${formatQtd(p.estoqueMinimo)}` : undefined} />
+        <Indicador
+          rotulo="Em Casa"
+          valor={formatQtd(saldos.casa)}
+          tom={saldos.casa < 0 ? 'ruim' : saldos.casa < minimo.minimo ? 'atencao' : undefined}
+          detalhe={minimo.minimo ? `mínimo ${formatQtd(minimo.minimo)}${minimo.automatico ? ' (automático)' : ''}` : undefined}
+        />
         <Indicador rotulo="Nos parceiros" valor={formatQtd(saldos.parceiros)} detalhe={`total ${formatQtd(saldos.total)}`} />
         <Indicador rotulo="Preço de etiqueta" valor={formatBRL(p.precoEtiquetaCentavos)} detalhe={<SeloMargem p={p} />} />
         <Indicador rotulo="Custo por peça" valor={formatReais(custo)} />

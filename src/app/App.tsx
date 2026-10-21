@@ -9,6 +9,8 @@ import { useLocal } from './router.ts';
 import { ACOES_RAPIDAS, MENU, resolverRota, type Secao } from './routes.tsx';
 import { Onboarding } from '../features/onboarding/Onboarding.tsx';
 import { Login } from '../features/conta/Login.tsx';
+import { baixarBackupAgora } from '../features/config/ConfigDados.tsx';
+import { adiarLembreteBackup, lembreteBackupAtual } from '../services/backup.ts';
 
 class LimiteErro extends Component<{ chave: string; children: ComponentChildren }, { erro: Error | null }> {
   state = { erro: null as Error | null };
@@ -113,14 +115,34 @@ function BotaoNovo({ lateral }: { lateral?: boolean }) {
   );
 }
 
+/**
+ * Lembrete de backup (decisão 105): sem a nuvem, aparece só quando o último backup tem 7 dias ou mais (ou nunca
+ * houve), com "Baixar backup" em um toque e "Depois" (volta em 7 dias). Com a nuvem ligada, não aparece.
+ */
 function AvisoBackup() {
   const nuvem = useNuvem();
-  if (nuvem.configurada) return null;
+  const [, setVersao] = useState(0);
+  const l = lembreteBackupAtual(nuvem.configurada);
+  if (!l.mostrar) return null;
+  const atualizar = () => setVersao((v) => v + 1);
   return (
-    <a class="aviso-backup" href="#/config/dados">
+    <div class="aviso-backup">
       <Icon nome="alerta" tamanho={16} />
-      <span>Seus dados estão só neste aparelho. Faça backup.</span>
-    </a>
+      <span>{l.dias == null ? 'Seus dados estão só neste aparelho e ainda não têm backup.' : `Último backup há ${l.dias} dias.`}</span>
+      <button type="button" class="aviso-backup-acao" onClick={() => baixarBackupAgora().then(atualizar)}>
+        Baixar backup
+      </button>
+      <button
+        type="button"
+        class="aviso-backup-depois"
+        onClick={() => {
+          adiarLembreteBackup();
+          atualizar();
+        }}
+      >
+        Depois
+      </button>
+    </div>
   );
 }
 

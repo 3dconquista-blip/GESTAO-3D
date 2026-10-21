@@ -524,6 +524,17 @@ export interface Pagamento extends Base {
   estornoDe?: ID;
 }
 
+// ---------------------------------------------------------------- Gastos avulsos (decisão 106)
+
+/** Gasto que não está nos custos fixos do mês (ferramenta, anúncio, embalagem...): entra no lucro do período. */
+export interface Gasto extends Base {
+  data: ISODate;
+  descricao: string;
+  valorCentavos: Cents;
+  /** Desfeito: continua guardado, mas não entra no lucro. */
+  cancelado?: boolean;
+}
+
 // ---------------------------------------------------------------- Coleções
 
 export interface Colecoes {
@@ -540,6 +551,7 @@ export interface Colecoes {
   pedidos: Pedido;
   vendas: Venda;
   pagamentos: Pagamento;
+  gastos: Gasto;
 }
 
 export type NomeColecao = keyof Colecoes;
@@ -558,6 +570,7 @@ export const COLECOES: NomeColecao[] = [
   'pedidos',
   'vendas',
   'pagamentos',
+  'gastos',
 ];
 
 /** Dados para inserir: o banco preenche id e carimbos. */

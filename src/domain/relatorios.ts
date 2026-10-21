@@ -21,6 +21,7 @@ import type {
   Acerto,
   CanalVenda,
   Expositor,
+  Gasto,
   ID,
   Material,
   MovEstoque,
@@ -60,6 +61,8 @@ export interface DadosRelatorio {
   materiais: Material[];
   /** Opcional: com a lista, parceiros não arquivados sem acerto no período também aparecem (zerados). */
   parceiros?: Parceiro[];
+  /** Gastos avulsos (decisão 106); os cancelados não contam. */
+  gastos?: Gasto[];
 }
 
 /** Parâmetros usados no resultado (um ParametrosCusto completo serve). */
@@ -506,7 +509,10 @@ export interface ResultadoPeriodo {
   perdasCentavos: Cents;
   perdas: Perdas;
   custosFixosCentavos: Cents;
-  /** receita − custo dos produtos vendidos − perdas − custos fixos. */
+  /** Gastos avulsos do período (sem os cancelados). */
+  gastosCentavos: Cents;
+  gastos: Gasto[];
+  /** receita − custo dos produtos vendidos − perdas − custos fixos − gastos avulsos. */
   lucroCentavos: Cents;
   /** lucro ÷ receita (%), null sem receita. */
   margemPct: number | null;
@@ -523,7 +529,9 @@ export function resultadoPeriodo(dados: DadosRelatorio, periodo: Intervalo, cust
   const t = vc.total;
   const receitaPorCanal = { direta: 0, parceiros: 0, pedidos: 0 } as Record<CanalReceita, Cents>;
   for (const c of vc.canais) receitaPorCanal[c.canal] = c.receitaCentavos;
-  const lucro = t.receitaCentavos - t.custoCentavos - perdas.totalCentavos - fixos;
+  const gastos = (dados.gastos ?? []).filter((g) => !g.cancelado && g.data >= periodo.de && g.data <= periodo.ate).sort((a, b) => a.data.localeCompare(b.data));
+  const totalGastos = gastos.reduce((s, g) => s + g.valorCentavos, 0);
+  const lucro = t.receitaCentavos - t.custoCentavos - perdas.totalCentavos - fixos - totalGastos;
   return {
     de: periodo.de,
     ate: periodo.ate,
@@ -538,6 +546,8 @@ export function resultadoPeriodo(dados: DadosRelatorio, periodo: Intervalo, cust
     perdasCentavos: perdas.totalCentavos,
     perdas,
     custosFixosCentavos: fixos,
+    gastosCentavos: totalGastos,
+    gastos,
     lucroCentavos: lucro,
     margemPct: t.receitaCentavos > 0 ? (lucro / t.receitaCentavos) * 100 : null,
   };

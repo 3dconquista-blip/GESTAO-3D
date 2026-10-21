@@ -2,7 +2,9 @@
 // Importar substitui TUDO o que está no aparelho pelo conteúdo do arquivo.
 import { db, type Snapshot } from '../data/db.ts';
 import { NOME_APP } from '../data/defaults.ts';
-import type { Base, Config, NomeColecao } from '../data/types.ts';
+import { lerLocal, salvarLocal } from '../data/local.ts';
+import { diffDias, hojeISO } from '../lib/dates.ts';
+import type { Base, Config, ISODate, NomeColecao } from '../data/types.ts';
 import { COLECOES } from '../data/types.ts';
 import { ErroNegocio } from './estoque.ts';
 
@@ -12,6 +14,46 @@ export interface ArquivoBackup {
   exportadoEm: string;
   config: Config;
   colecoes: Partial<Record<NomeColecao, Base[]>>;
+}
+
+// ---------------------------------------------------------------- Lembrete (decisão 105)
+
+/** De quantos em quantos dias o app lembra do backup (só sem a nuvem). */
+export const DIAS_LEMBRETE_BACKUP = 7;
+const CHAVE_ULTIMO = 'backup:ultimo';
+const CHAVE_ADIADO = 'backup:adiado';
+
+export interface LembreteBackup {
+  mostrar: boolean;
+  /** Dias desde o último backup neste aparelho (null = nunca). */
+  dias: number | null;
+}
+
+/**
+ * Lembrar do backup: só com dados, sem nuvem, quando nunca houve backup ou o último tem 7 dias ou mais, e se o
+ * dono não pediu "Depois" nos últimos 7 dias.
+ */
+export function lembreteBackup(e: { ultimo: ISODate | null; adiadoEm: ISODate | null; hoje: ISODate; temDados: boolean; nuvem: boolean }): LembreteBackup {
+  const dias = e.ultimo ? diffDias(e.ultimo, e.hoje) : null;
+  if (e.nuvem || !e.temDados) return { mostrar: false, dias };
+  if (e.adiadoEm && diffDias(e.adiadoEm, e.hoje) < DIAS_LEMBRETE_BACKUP) return { mostrar: false, dias };
+  return { mostrar: dias == null || dias >= DIAS_LEMBRETE_BACKUP, dias };
+}
+
+/** Lembrete com o que está guardado neste aparelho. */
+export function lembreteBackupAtual(nuvem: boolean, hoje: ISODate = hojeISO()): LembreteBackup {
+  const temDados = db.all('produtos').length > 0 || db.all('vendas').length > 0 || db.all('materiais').length > 0;
+  return lembreteBackup({ ultimo: lerLocal<ISODate>(CHAVE_ULTIMO), adiadoEm: lerLocal<ISODate>(CHAVE_ADIADO), hoje, temDados, nuvem });
+}
+
+/** Guarda neste aparelho o dia do último backup baixado. */
+export function registrarBackupFeito(hoje: ISODate = hojeISO()): void {
+  salvarLocal(CHAVE_ULTIMO, hoje);
+}
+
+/** "Depois": não lembra de novo por 7 dias. */
+export function adiarLembreteBackup(hoje: ISODate = hojeISO()): void {
+  salvarLocal(CHAVE_ADIADO, hoje);
 }
 
 /** Gera o texto JSON do backup com tudo o que está no aparelho. */

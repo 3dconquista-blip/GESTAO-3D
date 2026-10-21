@@ -47,6 +47,8 @@ export interface EntradaAlertas {
   diasSemVenda?: number;
   /** Para dar nome ao local do parceiro nos saldos negativos. */
   parceiros?: Parceiro[];
+  /** Estoque mínimo em Casa de cada produto (padrão: o informado; o app passa o automático, decisão 102). */
+  minimo?: (produto: Produto) => number;
 }
 
 export const DIAS_SEM_VENDA_PADRAO = 60;
@@ -134,13 +136,14 @@ export function alertasEstoque(e: EntradaAlertas): AlertaEstoque[] {
     if (p.arquivado) continue;
 
     // Abaixo do mínimo em Casa (o negativo já tem alerta próprio).
-    if (p.estoqueMinimo > 0 && casa >= 0 && casa < p.estoqueMinimo) {
+    const minimo = e.minimo ? e.minimo(p) : p.estoqueMinimo;
+    if (minimo > 0 && casa >= 0 && casa < minimo) {
       out.push({
         id: `abaixo_minimo:${p.id}`,
         tipo: 'abaixo_minimo',
         tom: 'atencao',
         titulo: `${p.nome} abaixo do mínimo`,
-        detalhe: `Em Casa: ${formatQtd(casa)}. Mínimo: ${formatQtd(p.estoqueMinimo)}.`,
+        detalhe: `Em Casa: ${formatQtd(casa)}. Mínimo: ${formatQtd(minimo)}${p.estoqueMinimo > 0 ? '' : ' (automático)'}.`,
         href: rotaProduto(p.id),
         produtoId: p.id,
         nome: p.nome,

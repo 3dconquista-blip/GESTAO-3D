@@ -59,3 +59,4 @@
 .cor-botao { display: inline-flex; align-items: center; gap: 8px; min-height: var(--toque); padding: 6px 12px; border: 1px solid var(--borda-forte); border-radius: 999px; background: var(--superficie); color: var(--texto); font: inherit; font-weight: 600; cursor: pointer; }
 .cor-botao.ativo { border-color: var(--principal); background: var(--principal-claro); color: var(--principal); box-shadow: 0 0 0 2px var(--principal) inset; }
 .prod-baixa { font-size: 0.88rem; margin: 0; }
+.imp-acoes { display: flex; flex-wrap: wrap; gap: 8px; }

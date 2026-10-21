@@ -5,7 +5,7 @@ import { useState } from 'preact/hooks';
 import { navegar, type TelaProps } from '../../app/router.ts';
 import { db } from '../../data/db.ts';
 import { useDb } from '../../data/hooks.ts';
-import { materiaisAtivos } from '../../data/selectors.ts';
+import { materiaisAtivos, minimoDoProduto } from '../../data/selectors.ts';
 import type { Cents, LicencaVenda } from '../../data/types.ts';
 import type { FichaTecnica } from '../../domain/pricing.ts';
 import { custosComMargem, etiquetaSugerida, simular } from '../../domain/pricing.ts';
@@ -14,6 +14,7 @@ import { round4 } from '../../lib/money.ts';
 import { salvarProduto } from '../../services/produtos.ts';
 import { Aviso, Botao, Campo, Cartao, Dinheiro, Escolha, Foto, MaisDetalhes, Numero, Pagina, Segmentado, Texto, Vazio, avisar } from '../../ui/index.ts';
 import { ComponentesEditor, ComposicaoCustoView, FichaTecnicaEditor, PrecosSugeridos, TabelaSimulador, fichaVazia, useComposicao } from '../precos/componentes.tsx';
+import { ImportarFatiador, fichaDaImportacao } from '../precos/ImportarFatiador.tsx';
 
 interface Dados {
   nome: string;
@@ -72,6 +73,8 @@ export function ProdutoForm({ params }: TelaProps) {
   const semImpressora = db.all('impressoras').filter((i) => i.ativa).length === 0;
   const semFilamento = materiaisAtivos('filamento').length === 0;
   const margemPadrao = db.config.custos.margemDesejadaPct;
+  // Mínimo automático de hoje (produto novo não tem vendas: 0).
+  const minimoAuto = atual ? minimoDoProduto({ id: atual.id, estoqueMinimo: 0 }).minimo : 0;
   const custos = custosComMargem(db.config.custos, d.margemPct);
   const sugerida = comp.total > 0 ? etiquetaSugerida(comp.total, db.config.canais, custos) : null;
   const precoUsado = d.precoEtiquetaCentavos ?? sugerida;
@@ -133,6 +136,13 @@ export function ProdutoForm({ params }: TelaProps) {
           <Campo rotulo="Nome" obrigatorio>
             <Texto value={d.nome} onInput={(v) => mudar({ nome: v })} placeholder="Ex.: Chaveiro Kettlebell (sem a cor)" autoFocus={!atual} />
           </Campo>
+          <ImportarFatiador
+            onImportar={(imp) => {
+              setFicha(fichaDaImportacao(imp, ficha));
+              if (imp.mesas.length > 1 || imp.mesas.some((m) => m.filamentos.length > 1)) setFichaAvancada(true);
+              if (!d.nome.trim() && imp.nome) mudar({ nome: imp.nome });
+            }}
+          />
           <FichaTecnicaEditor valor={ficha} onChange={setFicha} modo="produto" mostrarExtras={fichaAvancada} />
 
           <div class="prod-preco">
@@ -173,8 +183,8 @@ export function ProdutoForm({ params }: TelaProps) {
           <Campo rotulo="Categoria">
             <Escolha value={d.categoria} onChange={(v) => mudar({ categoria: v })} opcoes={db.config.categorias.map((c) => ({ valor: c, rotulo: c }))} />
           </Campo>
-          <Campo rotulo="Estoque mínimo em Casa" dica="Abaixo disso aparece em &quot;O que imprimir&quot;">
-            <Numero value={d.estoqueMinimo} onChange={(v) => mudar({ estoqueMinimo: Math.max(0, v ?? 0) })} decimais={0} min={0} stepper />
+          <Campo rotulo="Estoque mínimo em Casa" dica={d.estoqueMinimo ? 'Abaixo disso aparece em "O que imprimir"' : `Vazio = automático: o que você vende em 15 dias${minimoAuto ? ` (hoje: ${minimoAuto})` : ''}`}>
+            <Numero value={d.estoqueMinimo || null} onChange={(v) => mudar({ estoqueMinimo: Math.max(0, v ?? 0) })} decimais={0} min={0} placeholder="Automático" />
           </Campo>
           <Campo rotulo="Margem de lucro deste produto" dica={d.margemPct == null ? `Vazio = a padrão (${formatPct(margemPadrao, 0)})` : 'Os preços sugeridos usam esta margem'}>
             <Numero value={d.margemPct} onChange={(v) => mudar({ margemPct: v })} min={0} max={99} decimais={1} sufixo="%" placeholder={`${margemPadrao} (padrão)`} />

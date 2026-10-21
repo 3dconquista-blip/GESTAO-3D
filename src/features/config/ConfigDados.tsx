@@ -4,7 +4,7 @@ import { navegar } from '../../app/router.ts';
 import { db } from '../../data/db.ts';
 import { hojeISO } from '../../lib/dates.ts';
 import { formatDataHora } from '../../lib/format.ts';
-import { exportarBackup, importarBackup, nomeArquivoBackup, validarBackup } from '../../services/backup.ts';
+import { exportarBackup, importarBackup, nomeArquivoBackup, registrarBackupFeito, validarBackup } from '../../services/backup.ts';
 import { apagarExemplo, carregarExemplo, contagemExemplo, produtosQueUsamExemplo } from '../../services/exemplo.ts';
 import { PLANILHAS, contagemPlanilha, csvPlanilha } from '../../services/exportacao.ts';
 import { nomeArquivoCSV } from '../../domain/csv.ts';
@@ -25,17 +25,22 @@ const NOMES: Record<string, string> = {
   pedidos: 'pedidos',
   vendas: 'vendas',
   pagamentos: 'pagamentos',
+  gastos: 'gastos',
 };
+
+/** Baixa o backup completo e anota o dia (o lembrete semanal some por 7 dias). */
+export async function baixarBackupAgora(): Promise<void> {
+  const texto = await exportarBackup();
+  baixarArquivo(nomeArquivoBackup(hojeISO()), texto, 'application/json');
+  registrarBackupFeito();
+  avisar('Backup baixado. Guarde o arquivo em um lugar seguro (Drive, e-mail).');
+}
 
 export function ConfigDados() {
   const [ocupado, setOcupado] = useState(false);
   const exemplos = contagemExemplo();
 
-  const exportar = async () => {
-    const texto = await exportarBackup();
-    baixarArquivo(nomeArquivoBackup(hojeISO()), texto, 'application/json');
-    avisar('Backup exportado. Guarde o arquivo em um lugar seguro (Drive, e-mail).');
-  };
+  const exportar = baixarBackupAgora;
 
   const importar = async (arquivo: File) => {
     const texto = await arquivo.text();

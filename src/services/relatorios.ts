@@ -64,6 +64,7 @@ export const dadosRelatorio = memo(
     expositores: db.all('expositores'),
     materiais: db.all('materiais'),
     parceiros: db.all('parceiros'),
+    gastos: db.all('gastos'),
   }),
 );
 
@@ -331,6 +332,7 @@ export function csvResultado(p: Intervalo): ArquivoCSV {
     { item: '(-) Custo dos produtos vendidos', valor: -r.cmvCentavos },
     { item: '(-) Perdas', valor: -r.perdasCentavos },
     { item: '(-) Custos fixos', valor: -r.custosFixosCentavos },
+    { item: '(-) Gastos avulsos', valor: -r.gastosCentavos },
     { item: '(=) Lucro estimado', valor: r.lucroCentavos },
     { item: 'Total vendido nos parceiros (bruto)', valor: r.totalVendidoParceirosCentavos },
     { item: 'Taxas de cartão (já descontadas da receita)', valor: r.taxasCartaoCentavos },

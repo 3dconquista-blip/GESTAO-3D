@@ -415,3 +415,9 @@ a.item-lista:hover, button.item-lista:hover { background: var(--superficie-2); }
 .mais-detalhes-seta { margin-left: auto; transition: transform 0.15s; flex: 0 0 auto; }
 .mais-detalhes[open] > summary .mais-detalhes-seta { transform: rotate(180deg); }
 .mais-detalhes-corpo { padding: 4px 12px 14px; display: flex; flex-direction: column; gap: 12px; }
+.aviso-backup-acao, .aviso-backup-depois { border: 0; background: none; font: inherit; cursor: pointer; padding: 4px 6px; border-radius: 6px; }
+.aviso-backup-acao { color: inherit; text-decoration: underline; font-weight: 700; }
+.aviso-backup-depois { color: inherit; opacity: 0.75; }
+.gasto-recentes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: -4px; }
+.gasto-chip { border: 1px solid var(--borda-forte); background: var(--superficie); color: var(--texto); border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 0.85rem; cursor: pointer; min-height: 36px; }
+.gasto-chip.ativo { border-color: var(--principal); background: var(--principal-claro); color: var(--principal); font-weight: 600; }

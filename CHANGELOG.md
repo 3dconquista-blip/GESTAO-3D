@@ -5,6 +5,24 @@ Formato: [vX.Y.Z] - AAAA-MM-DD
 
 ---
 
+## [v2.1.0] - 2026-10-21
+
+Menos digitação no dia a dia (decisões 102 a 106).
+
+### Adicionado
+- "Importar do fatiador" no cadastro do produto e na peça personalizada do pedido: lê o .3mf fatiado (Bambu
+  Studio/OrcaSlicer) ou o .gcode (Bambu, Orca, PrusaSlicer, Cura) e preenche peças por mesa, tempo, gramas e tipo de
+  filamento (e o nome, se estiver vazio)
+- Estoque mínimo automático: produto sem mínimo usa o que vende direto em 15 dias (média dos últimos 30)
+- "Imprimi" com um toque em "O que imprimir", com "Desfazer"
+- Atalhos no ícone do app: Venda rápida, Registrar produção, O que imprimir e Fazer acerto
+- Gastos avulsos (com o que foi e quanto custou), descontados do lucro, com atalhos das descrições recentes
+
+### Alterado
+- O aviso fixo "Faça backup" virou um lembrete semanal com "Baixar backup" em um toque e "Depois"
+
+---
+
 ## [v2.0.0] - 2026-10-21
 
 App simplificado pelo princípio de Pareto (80/20): cada tela mostra o que se usa quase sempre e o resto fica em

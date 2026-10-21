@@ -10,9 +10,81 @@
   "background_color": "#F3F5F7",
   "theme_color": "#18283A",
   "icons": [
-    { "src": "icons/octa.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
-    { "src": "icons/octa-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" },
-    { "src": "icons/octa-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icons/octa-512.png", "sizes": "512x512", "type": "image/png" }
+    {
+      "src": "icons/octa.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/octa-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icons/octa-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/octa-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Venda rápida",
+      "short_name": "Venda",
+      "description": "Vender direto, sai do estoque de Casa",
+      "url": "./#/venda",
+      "icons": [
+        {
+          "src": "icons/octa-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Registrar produção",
+      "short_name": "Produção",
+      "description": "Peças que acabaram de sair da impressora",
+      "url": "./#/producao/nova",
+      "icons": [
+        {
+          "src": "icons/octa-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "O que imprimir",
+      "short_name": "Imprimir",
+      "description": "O que falta imprimir, do mais urgente ao menos",
+      "url": "./#/estoque/imprimir",
+      "icons": [
+        {
+          "src": "icons/octa-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Fazer acerto",
+      "short_name": "Acerto",
+      "description": "Agenda de acertos com os parceiros",
+      "url": "./#/parceiros",
+      "icons": [
+        {
+          "src": "icons/octa-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
   ]
 }

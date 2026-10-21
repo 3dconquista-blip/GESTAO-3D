@@ -14,6 +14,7 @@ import { OQueImprimir } from '../features/estoque/OQueImprimir.tsx';
 import { Movimentacoes } from '../features/estoque/Movimentacoes.tsx';
 import { RegistrarProducao } from '../features/estoque/RegistrarProducao.tsx';
 import { CompraMaterial } from '../features/estoque/CompraMaterial.tsx';
+import { LancarGasto } from '../features/gastos/LancarGasto.tsx';
 import { AjusteEstoque } from '../features/estoque/AjusteEstoque.tsx';
 import { TelaParceiros } from '../features/parceiros/Parceiros.tsx';
 import { ParceiroForm } from '../features/parceiros/ParceiroForm.tsx';
@@ -65,6 +66,7 @@ export const ROTAS: Rota[] = [
   { padrao: '/estoque/ajuste', tela: AjusteEstoque, secao: 'estoque' },
   { padrao: '/producao/nova', tela: RegistrarProducao, secao: 'estoque' },
   { padrao: '/compra', tela: CompraMaterial, secao: 'estoque' },
+  { padrao: '/gastos/novo', tela: LancarGasto, secao: 'mais' },
 
   // Parceiros
   { padrao: '/parceiros', tela: TelaParceiros, secao: 'parceiros' },
@@ -123,6 +125,7 @@ export const ACOES_RAPIDAS = [
   { rotulo: 'Fazer acerto', icone: 'parceiros', href: '/parceiros' },
   { rotulo: 'Novo pedido', icone: 'pedidos', href: '/pedidos/novo' },
   { rotulo: 'Compra de material', icone: 'rolo', href: '/compra' },
+  { rotulo: 'Lançar gasto', icone: 'dinheiro', href: '/gastos/novo' },
 ];
 
 export const MENU: { secao: Secao; rotulo: string; icone: string; href: string }[] = [

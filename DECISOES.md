@@ -330,3 +330,28 @@ Registro das escolhas feitas onde a especificação não define, ou deixa a crit
 101. **Primeiro acesso em 2 passos:** empresa e impressora (só nome da empresa, chave PIX e quanto pagou na impressora à
     vista; nome do PIX, WhatsApp, vida útil, potência e manutenção em "Mais detalhes"), depois filamentos (tipo, cor,
     custo do kg e quanto tem; a amostra sai do nome da cor).
+
+## Etapa E: menos digitação no dia a dia (21/10/2026)
+
+102. **Estoque mínimo automático.** Produto sem mínimo informado (vazio ou 0) usa o que vende direto em 15 dias, pela
+    média dos últimos 30 (venda rápida e itens de catálogo entregues em pedidos; vendas canceladas não contam). Vale
+    para "O que imprimir", os alertas e as telas de produto, que mostram "(automático)". A reposição dos parceiros já
+    entra à parte. Mínimo informado (maior que 0) continua valendo.
+103. **"Importar do fatiador".** No cadastro do produto e na peça personalizada do pedido, o dono escolhe o arquivo que já
+    salva para imprimir e a ficha se preenche: o .3mf fatiado da Bambu Studio/OrcaSlicer (Metadata/slice_info.config:
+    tempo, gramas, tipo do filamento e peças de cada mesa, sem as puladas) ou o .gcode da Bambu, Orca, PrusaSlicer e
+    Cura (comentários de tempo, gramas e tipo; o Cura só dá metros, convertidos para PLA de 1,75 mm com aviso). Várias
+    mesas viram várias mesas da ficha, com aviso para conferir. Nome vazio recebe o nome do objeto ou do arquivo.
+104. **"Imprimi" com um toque** em "O que imprimir": registra as mesas sugeridas na cor que já viria marcada, com
+    "Desfazer"; "Outra cor ou quantidade" abre a tela de produção. O ícone do app ganhou atalhos (segurar o ícone):
+    Venda rápida, Registrar produção, O que imprimir e Fazer acerto.
+
+## Etapa F: backup sem incomodar e gastos avulsos (21/10/2026)
+
+105. **Lembrete de backup semanal no lugar do aviso fixo.** Sem a nuvem, o aviso só aparece quando nunca houve backup
+    neste aparelho ou o último tem 7 dias ou mais, com "Baixar backup" (um toque baixa o arquivo e anota o dia) e
+    "Depois" (volta em 7 dias). Com a nuvem ligada, não aparece. As datas ficam só no aparelho (não vão no backup).
+106. **Gastos avulsos em 2 campos:** com o que foi e quanto custou (data em "Mais detalhes", padrão hoje), pelo "+" ou
+    em Relatórios > Resultado > Gastos avulsos. As descrições usadas por último viram atalhos. Entram no lucro do
+    período como "(−) Gastos avulsos" (no Início, nos Relatórios e no CSV do resultado), além dos custos fixos do mês.
+    "Desfazer" cancela o gasto, que continua guardado. Versões antigas do app ignoram a lista nova.
