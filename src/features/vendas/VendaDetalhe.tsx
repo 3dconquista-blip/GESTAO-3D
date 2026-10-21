@@ -27,7 +27,7 @@ export function VendaDetalhe({ params }: TelaProps) {
     { id: 'qtd', rotulo: 'Qtd.', alinhar: 'dir', render: (i) => String(i.quantidade) },
     { id: 'preco', rotulo: 'Preço', alinhar: 'dir', render: (i) => formatBRL(i.precoUnitCentavos) },
     { id: 'valor', rotulo: 'Valor', alinhar: 'dir', render: (i) => formatBRL(i.quantidade * i.precoUnitCentavos) },
-    { id: 'custo', rotulo: 'Custo (momento)', alinhar: 'dir', render: (i) => formatReais(i.quantidade * i.custoUnit) },
+    { id: 'custo', rotulo: 'Custo (momento)', alinhar: 'dir', render: (i) => formatReais(i.quantidade * i.custoUnit), esconderNoCelular: true },
   ];
   return (
     <Pagina titulo={`Venda de ${formatData(v.data)}`} subtitulo={`${ROTULO_CANAL_VENDA[v.canal]} · ${nomeCliente(v.clienteId)}`} voltarPara="/vendas">

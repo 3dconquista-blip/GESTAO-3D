@@ -1,24 +1,23 @@
-// "O que imprimir" (seção 7.5): necessidade, mesas, tempo, filamento e ordem de urgência.
+// "O que imprimir" (seção 7.5): necessidade, mesas, tempo, filamento (por tipo, somando as cores) e ordem de urgência.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import type { Acerto, AcertoItem, Material, Parceiro, Pedido, PedidoItem, Produto } from '../data/types.ts';
+import type { Acerto, AcertoItem, Material, Parceiro, Pedido, PedidoItem, Produto, TipoFilamento } from '../data/types.ts';
 import { listaOQueImprimir, reposicaoPrevista, reservasDePedidos, type EntradaOQueImprimir } from './oQueImprimir.ts';
+import { reservasCatalogo } from './pedidos.ts';
 
 const base = { criadoEm: '2026-09-01T12:00:00.000Z', atualizadoEm: '2026-09-01T12:00:00.000Z' };
 
-function produto(id: string, nome: string, estoqueMinimo: number, pecasPorMesa: number, tempoMin: number, materialId: string, gramas: number): Produto {
+function produto(id: string, nome: string, estoqueMinimo: number, pecasPorMesa: number, tempoMin: number, tipo: TipoFilamento, gramas: number): Produto {
   return {
     ...base,
     id,
     nome,
-    modelo: nome,
-    cor: '',
     categoria: 'Chaveiro',
     codigo: id,
     precoEtiquetaCentavos: 1500,
     estoqueMinimo,
     maoDeObraMin: 2,
-    mesas: [{ id: `m-${id}`, pecasPorMesa, tempoMin, impressoraId: 'imp', filamentos: [{ materialId, gramas }] }],
+    mesas: [{ id: `m-${id}`, pecasPorMesa, tempoMin, impressoraId: 'imp', filamentos: [{ tipo, gramas }] }],
     componentes: [{ materialId: 'argola', quantidade: 1 }],
     origemModelo: 'proprio',
     arquivado: false,
@@ -126,14 +125,28 @@ function pedido(id: string, numero: number, etapa: Pedido['etapa'], itens: Pedid
   };
 }
 
-const pla: Material = { ...base, id: 'pla', tipo: 'filamento', nome: 'PLA Preto', unidade: 'g', custoMedio: 100, minimo: 250, arquivado: false };
+const fil = (id: string, material: TipoFilamento, cor: string, arquivado = false): Material => ({
+  ...base,
+  id,
+  tipo: 'filamento',
+  nome: `${material} ${cor}`,
+  material,
+  corNome: cor,
+  unidade: 'g',
+  custoMedio: 100,
+  minimo: 250,
+  arquivado,
+});
+// PLA: 60 g de Preto + 40 g de Rosa = 100 g (o arquivado não conta). PETG: 1.000 g.
+const materiais = [fil('pla', 'PLA', 'Preto'), fil('rosa', 'PLA', 'Rosa'), fil('velho', 'PLA', 'Azul', true), fil('petg', 'PETG', 'Branco')];
+const saldos: Record<string, number> = { pla: 60, rosa: 40, velho: 500, petg: 1000 };
 
-// Kettlebell Preto: 8 peças por mesa, 4 h, 64 g de PLA Preto (Exemplo A). Anilha: 6 por mesa, 3 h, 48 g do mesmo PLA.
-const kb = produto('kb', 'Kettlebell Preto', 5, 8, 240, 'pla', 64);
-const an = produto('an', 'Anilha Vermelha', 4, 6, 180, 'pla', 48);
-const ha = produto('ha', 'Halter Cinza', 2, 8, 240, 'plac', 64);
-const kr = produto('kr', 'Kettlebell Rosa', 3, 8, 240, 'plar', 64);
-const velho = { ...produto('old', 'Arquivado', 10, 8, 240, 'pla', 64), arquivado: true };
+// Kettlebell: 8 peças por mesa, 4 h, 64 g de PLA (Exemplo A). Anilha: 6 por mesa, 3 h, 48 g de PLA. Vaso: PETG.
+const kb = produto('kb', 'Kettlebell', 5, 8, 240, 'PLA', 64);
+const an = produto('an', 'Anilha', 4, 6, 180, 'PLA', 48);
+const ha = produto('ha', 'Halter', 2, 8, 240, 'PLA', 64);
+const kr = produto('kr', 'Vaso', 3, 8, 240, 'PETG', 64);
+const velho = { ...produto('old', 'Arquivado', 10, 8, 240, 'PLA', 64), arquivado: true };
 
 // Academia Alfa (Exemplo B): Kettlebell vendeu 4 e 6, Anilha 2 e 3, Halter 0 e 0.
 const alfa = parceiro('alfa', [
@@ -141,7 +154,7 @@ const alfa = parceiro('alfa', [
   { produtoId: 'an', nivelIdeal: 8 },
   { produtoId: 'ha', nivelIdeal: 6 },
 ]);
-// Loja Beta ainda sem acerto: Kettlebell Rosa ideal 12, há 5 no expositor.
+// Loja Beta ainda sem acerto: Vaso ideal 12, há 5 no expositor.
 const beta = parceiro('beta', [{ produtoId: 'kr', nivelIdeal: 12 }]);
 const pausado = parceiro('pausado', [{ produtoId: 'kb', nivelIdeal: 50 }], { situacao: 'pausado' });
 const acertos = [
@@ -168,16 +181,17 @@ function entrada(over: Partial<EntradaOQueImprimir> = {}): EntradaOQueImprimir {
     parceirosAtivos: [alfa, beta, pausado],
     acertos,
     reservasPedidos: reservasDePedidos(pedidos),
-    saldoMaterial: (id) => (id === 'pla' ? 100 : 1000),
-    materiais: [pla],
+    saldoMaterial: (id) => saldos[id] ?? 0,
+    materiais,
     pedidosPersonalizados: pedidos,
     ...over,
   };
 }
 
 describe('reservas e reposição prevista', () => {
-  it('reserva itens de catálogo de pedidos aprovados, em produção e prontos ainda não baixados', () => {
+  it('reserva itens de catálogo de pedidos em produção (também os antigos em "aprovado") e prontos ainda não baixados', () => {
     assert.deepEqual(Array.from(reservasDePedidos(pedidos)), [['kb', 3]]);
+    assert.deepEqual(reservasCatalogo(pedidos), reservasDePedidos(pedidos));
   });
   it('média dos últimos 3 acertos nos parceiros ativos (pausado fica fora)', () => {
     const saldo = () => 0;
@@ -221,18 +235,21 @@ describe('listaOQueImprimir', () => {
     assert.equal(porId.get('an')?.mesas[0].mesas, 1);
     assert.equal(porId.get('an')?.tempoTotalMin, 180);
   });
-  it('filamento: soma de toda a lista contra o saldo do material', () => {
-    // Mesas inteiras: kb 2 mesas × 64 g = 128 g; an 1 mesa × 48 g = 48 g. Juntos 176 g > 100 g de saldo.
+  it('filamento: soma da lista inteira por tipo, contra o saldo de todas as cores do tipo', () => {
+    // Mesas inteiras: kb 2 mesas × 64 g = 128 g; an 1 mesa × 48 g = 48 g. Juntos 176 g de PLA > 100 g (Preto + Rosa).
     const fkb = porId.get('kb')!.filamentoNecessario;
-    assert.deepEqual(fkb, [{ materialId: 'pla', gramas: 128, saldo: 100, suficiente: false }]);
+    assert.deepEqual(fkb, [{ tipo: 'PLA', gramas: 128, saldo: 100, suficiente: false }]);
     assert.equal(porId.get('kb')?.filamentoSuficiente, false);
     assert.equal(porId.get('an')?.filamentoSuficiente, false);
-    assert.equal(porId.get('kr')?.filamentoSuficiente, true);
-    assert.deepEqual(r.filamentos[0], { materialId: 'pla', nome: 'PLA Preto', necessarioG: 176, saldoG: 100, faltaG: 76 });
+    assert.deepEqual(porId.get('kr')?.filamentoNecessario, [{ tipo: 'PETG', gramas: 128, saldo: 1000, suficiente: true }]);
+    assert.deepEqual(r.filamentos[0], { tipo: 'PLA', nome: 'PLA (todas as cores)', necessarioG: 176, saldoG: 100, faltaG: 76 });
+    assert.deepEqual(r.filamentos[1], { tipo: 'PETG', nome: 'PETG (todas as cores)', necessarioG: 128, saldoG: 1000, faltaG: 0 });
   });
   it('com saldo suficiente para a lista inteira', () => {
-    const ok = listaOQueImprimir(entrada({ saldoMaterial: () => 176 }));
+    // 76 g a mais de Rosa: 60 + 116 = 176 g de PLA, exatamente o que a lista pede.
+    const ok = listaOQueImprimir(entrada({ saldoMaterial: (id) => (id === 'rosa' ? 116 : (saldos[id] ?? 0)) }));
     assert.ok(ok.itens.every((i) => i.filamentoSuficiente));
+    assert.equal(ok.filamentos.find((f) => f.tipo === 'PLA')?.faltaG, 0);
   });
   it('ordem: falta para pedidos, sem estoque em Casa, depois reposição', () => {
     assert.deepEqual(r.itens.map((i) => i.produtoId), ['kb', 'kr', 'an']);
@@ -243,7 +260,7 @@ describe('listaOQueImprimir', () => {
     assert.equal(porId.get('an')?.motivo, 'Reposição prevista nos parceiros: 2,5');
     assert.equal(porId.get('kr')?.motivo, 'Abaixo do mínimo em Casa (0 de 3); reposição prevista nos parceiros: 7');
   });
-  it('pedidos em "Aprovado" ou "Em produção", pelo prazo (sem prazo no fim)', () => {
+  it('pedidos em "Em produção" (também os antigos em "aprovado"), pelo prazo (sem prazo no fim)', () => {
     assert.deepEqual(r.pedidos.map((p) => p.id), ['p2', 'p1', 'p6']);
   });
   it('saldo negativo em Casa entra na necessidade', () => {

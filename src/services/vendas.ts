@@ -1,6 +1,7 @@
 // "Venda rápida" (seção 10): sai do estoque de Casa e grava receita, taxa, custo do momento e lucro.
 // Saída maior que o saldo é permitida com aviso (7.2): o saldo fica negativo em vermelho até o próximo ajuste.
 // A venda gera um pagamento recebido (origem 'venda'). "Cancelar uma venda gera estorno."
+// O "Desfazer" do aviso (sem janela de confirmação, decisão 86) é um cancelamento datado no dia da venda.
 import { db } from '../data/db.ts';
 import { custoProduto, saldoCasa } from '../data/selectors.ts';
 import type { CanalVenda, Cents, FormaPagamento, ID, ISODate, Venda, VendaItem } from '../data/types.ts';
@@ -10,8 +11,10 @@ import { pctOfCents, round4, roundTo, toCents } from '../lib/money.ts';
 import { idsEstornados } from '../domain/stock.ts';
 import { ErroNegocio, estornarMov, lancarMov } from './estoque.ts';
 
-const FORMAS: FormaPagamento[] = ['pix', 'dinheiro', 'cartao'];
-const CANAIS: CanalVenda[] = ['presencial', 'whatsapp', 'instagram', 'feira'];
+/** Formas de pagamento da venda rápida, na ordem dos botões. */
+export const FORMAS_PAGAMENTO: readonly FormaPagamento[] = ['pix', 'dinheiro', 'cartao'];
+/** Canais da venda rápida, na ordem dos botões. */
+export const CANAIS_VENDA: readonly CanalVenda[] = ['presencial', 'whatsapp', 'instagram', 'feira'];
 
 export interface ItemVendaEntrada {
   produtoId: ID;
@@ -58,7 +61,8 @@ export interface CalculoVenda {
 }
 
 export interface DadosVenda extends EntradaVenda {
-  canal: CanalVenda;
+  /** Padrão 'presencial'. */
+  canal?: CanalVenda;
   /** Opcional: null ou ausente = "Cliente avulso". */
   clienteId?: ID | null;
   data?: ISODate;
@@ -82,7 +86,7 @@ function calcularDesconto(subtotal: Cents, desconto: DescontoVenda | null | unde
  * nunca acima do subtotal), total, taxa do cartão, custo, lucro e faltas em Casa.
  */
 export function calcularVenda(entrada: EntradaVenda): CalculoVenda {
-  if (!FORMAS.includes(entrada.forma)) throw new ErroNegocio('Escolha a forma de pagamento.');
+  if (!FORMAS_PAGAMENTO.includes(entrada.forma)) throw new ErroNegocio('Escolha a forma de pagamento.');
   const custos = db.config.custos;
   const itens: VendaItem[] = [];
   const qtdPorProduto = new Map<ID, number>();
@@ -130,7 +134,8 @@ export function calcularVenda(entrada: EntradaVenda): CalculoVenda {
  * tira os itens de Casa (permite saldo negativo) e lança o pagamento recebido.
  */
 export function registrarVenda(dados: DadosVenda): Venda {
-  if (!CANAIS.includes(dados.canal)) throw new ErroNegocio('Escolha o canal da venda.');
+  const canal = dados.canal ?? 'presencial';
+  if (!CANAIS_VENDA.includes(canal)) throw new ErroNegocio('Escolha o canal da venda.');
   const itensValidos = dados.itens.filter((i) => i.quantidade !== 0);
   if (itensValidos.length === 0) throw new ErroNegocio('Adicione pelo menos um produto.');
   const calc = calcularVenda({ itens: itensValidos, desconto: dados.desconto, forma: dados.forma });
@@ -140,7 +145,7 @@ export function registrarVenda(dados: DadosVenda): Venda {
     const data = dataOuHoje(dados.data);
     const venda = t.insert('vendas', {
       data,
-      canal: dados.canal,
+      canal,
       formaPagamento: dados.forma,
       clienteId,
       itens: calc.itens,
@@ -227,4 +232,17 @@ export function cancelarVenda(vendaId: ID, motivo: string, data?: ISODate): Vend
 
     return t.update('vendas', vendaId, { cancelada: true, canceladaEm: dataCanc, motivoCancelamento: m });
   });
+}
+
+/** Motivo gravado quando o dono toca em "Desfazer" no aviso da venda rápida. */
+export const MOTIVO_DESFEITA = 'Desfeita logo após registrar';
+
+/**
+ * "Desfazer" logo após registrar (decisão 86): cancela a venda com o estorno datado no próprio dia da venda, para
+ * que uma venda lançada com data passada se anule no mesmo período. Nada é apagado: a venda fica como cancelada.
+ */
+export function desfazerVenda(vendaId: ID): Venda {
+  const venda = db.get('vendas', vendaId);
+  if (!venda) throw new ErroNegocio('Venda não encontrada.');
+  return cancelarVenda(vendaId, MOTIVO_DESFEITA, venda.data);
 }

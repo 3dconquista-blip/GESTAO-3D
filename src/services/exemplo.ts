@@ -8,7 +8,8 @@
 //   visita de 16/10/2026 dos Exemplos B e C.
 // Etapa 4: a cliente Marina e o pedido #0001 do Exemplo D (em "Orçamento", total R$ 117,90, sinal R$ 58,95).
 import { db } from '../data/db.ts';
-import type { Config, ID, NomeColecao, ParametrosCusto } from '../data/types.ts';
+import type { Config, ID, NomeColecao, ParametrosCusto, Produto } from '../data/types.ts';
+import { posicoesDaFicha } from '../domain/filamento.ts';
 import { COLECOES } from '../data/types.ts';
 import { comprarMaterial, salvarMaterial } from './materiais.ts';
 import { salvarImpressora } from './impressoras.ts';
@@ -55,7 +56,7 @@ export function produtosQueUsamExemplo(): string[] {
   return db
     .all('produtos')
     .filter((p) => !p.exemplo)
-    .filter((p) => p.mesas.some((m) => exemplo.has(m.impressoraId) || m.filamentos.some((f) => exemplo.has(f.materialId))) || p.componentes.some((c) => exemplo.has(c.materialId)))
+    .filter((p) => p.mesas.some((m) => exemplo.has(m.impressoraId) || m.filamentos.some((f) => !!f.materialId && exemplo.has(f.materialId))) || p.componentes.some((c) => exemplo.has(c.materialId)))
     .map((p) => p.nome);
 }
 
@@ -117,49 +118,47 @@ export function carregarExemplo(): ResumoExemplo {
     comprarMaterial({ materialId: argola.id, quantidade: 100, valorTotalCentavos: 3000, data: '2026-09-08' });
     comprarMaterial({ materialId: saquinho.id, quantidade: 100, valorTotalCentavos: 1000, data: '2026-09-08' });
 
-    // Chaveiros: ficha do Exemplo A (1 mesa, 8 peças, 4 h, 64 g, 1 argola + 1 saquinho, 2 min)
-    const chaveiro = (nome: string, modelo: string, cor: string, filamento: ID, precoCentavos: number) =>
+    // Chaveiros: ficha do Exemplo A (1 mesa, 8 peças, 4 h, 64 g de PLA, 1 argola + 1 saquinho, 2 min).
+    // Produtos sem cor (decisão 85): a cor de cada lote é escolhida na produção.
+    const chaveiro = (nome: string, precoCentavos: number) =>
       salvarProduto({
         nome,
-        modelo,
-        cor,
         categoria: 'Chaveiro',
         precoEtiquetaCentavos: precoCentavos,
         estoqueMinimo: 10,
         maoDeObraMin: 2,
-        mesas: [{ pecasPorMesa: 8, tempoMin: 240, impressoraId: a1mini.id, filamentos: [{ materialId: filamento, gramas: 64 }] }],
+        mesas: [{ pecasPorMesa: 8, tempoMin: 240, impressoraId: a1mini.id, filamentos: [{ tipo: 'PLA', gramas: 64 }] }],
         componentes: [
           { materialId: argola.id, quantidade: 1 },
           { materialId: saquinho.id, quantidade: 1 },
         ],
       });
-    const kbPreto = chaveiro('Chaveiro Kettlebell Preto', 'Chaveiro Kettlebell', 'Preto', pla.Preto, 1500);
-    const kbRosa = chaveiro('Chaveiro Kettlebell Rosa', 'Chaveiro Kettlebell', 'Rosa', pla.Rosa, 1500);
-    const anilha = chaveiro('Chaveiro Anilha Vermelha', 'Chaveiro Anilha', 'Vermelha', pla.Vermelho, 1200);
-    const halter = chaveiro('Chaveiro Halter Cinza', 'Chaveiro Halter', 'Cinza', pla.Cinza, 1200);
+    const kettlebell = chaveiro('Chaveiro Kettlebell', 1500);
+    const anilha = chaveiro('Chaveiro Anilha', 1200);
+    const halter = chaveiro('Chaveiro Halter', 1200);
 
     // Display PIX com 2 mesas: placa (1 por mesa) e suporte (2 por mesa)
     const display = salvarProduto({
       nome: 'Display PIX',
-      modelo: 'Display PIX',
-      cor: 'Preto e branco',
       categoria: 'Display',
       precoEtiquetaCentavos: 3500,
       estoqueMinimo: 2,
       maoDeObraMin: 5,
       mesas: [
-        { pecasPorMesa: 1, tempoMin: 120, impressoraId: a1.id, filamentos: [{ materialId: pla.Preto, gramas: 45 }] },
-        { pecasPorMesa: 2, tempoMin: 90, impressoraId: a1.id, filamentos: [{ materialId: pla.Branco, gramas: 30 }] },
+        { pecasPorMesa: 1, tempoMin: 120, impressoraId: a1.id, filamentos: [{ tipo: 'PLA', gramas: 45 }] },
+        { pecasPorMesa: 2, tempoMin: 90, impressoraId: a1.id, filamentos: [{ tipo: 'PLA', gramas: 30 }] },
       ],
       componentes: [{ materialId: saquinho.id, quantidade: 1 }],
     });
 
-    // Produção de setembro para abastecer os expositores.
-    registrarProducao({ produtoId: kbPreto.id, qtdBoa: 16, data: '2026-09-10' });
-    registrarProducao({ produtoId: anilha.id, qtdBoa: 16, data: '2026-09-10' });
-    registrarProducao({ produtoId: halter.id, qtdBoa: 8, data: '2026-09-10' });
-    registrarProducao({ produtoId: kbRosa.id, qtdBoa: 24, data: '2026-09-12' });
-    registrarProducao({ produtoId: display.id, qtdBoa: 4, data: '2026-09-12' });
+    // Produção de setembro para abastecer os expositores (a cor de cada lote é escolhida aqui).
+    const naCor = (produto: Produto, ...carreteis: ID[]) =>
+      Object.fromEntries(posicoesDaFicha(produto.mesas).map((p, i) => [p.chave, carreteis[Math.min(i, carreteis.length - 1)]]));
+    registrarProducao({ produtoId: kettlebell.id, qtdBoa: 16, data: '2026-09-10', cores: naCor(kettlebell, pla.Preto) });
+    registrarProducao({ produtoId: anilha.id, qtdBoa: 16, data: '2026-09-10', cores: naCor(anilha, pla.Vermelho) });
+    registrarProducao({ produtoId: halter.id, qtdBoa: 8, data: '2026-09-10', cores: naCor(halter, pla.Cinza) });
+    registrarProducao({ produtoId: kettlebell.id, qtdBoa: 24, data: '2026-09-12', cores: naCor(kettlebell, pla.Rosa) });
+    registrarProducao({ produtoId: display.id, qtdBoa: 4, data: '2026-09-12', cores: naCor(display, pla.Preto, pla.Branco) });
 
     // Expositores
     const exp1 = salvarExpositor({ codigo: 'EXP-01', modelo: 'Painel de ganchos', capacidade: 30, custoCentavos: 6000 }, '2026-09-05');
@@ -181,7 +180,7 @@ export function carregarExemplo(): ResumoExemplo {
         termoAssinado: true,
         termoData: '2026-09-16',
         mix: [
-          { produtoId: kbPreto.id, nivelIdeal: 10, precoEtiquetaCentavos: 1500 },
+          { produtoId: kettlebell.id, nivelIdeal: 10, precoEtiquetaCentavos: 1500 },
           { produtoId: anilha.id, nivelIdeal: 8, precoEtiquetaCentavos: 1200 },
           { produtoId: halter.id, nivelIdeal: 6, precoEtiquetaCentavos: 1200 },
         ],
@@ -189,7 +188,7 @@ export function carregarExemplo(): ResumoExemplo {
       '2026-09-16',
     );
     instalar({ parceiroId: alfa.id, expositorIds: [exp1.id], itens: [
-      { produtoId: kbPreto.id, quantidade: 10 },
+      { produtoId: kettlebell.id, quantidade: 10 },
       { produtoId: anilha.id, quantidade: 8 },
       { produtoId: halter.id, quantidade: 6 },
     ], data: '2026-09-16' });
@@ -197,7 +196,7 @@ export function carregarExemplo(): ResumoExemplo {
     let r = montarRascunho(alfa.id, DATA_ACERTO_ANTERIOR_B);
     r = sugerir({
       ...r,
-      linhas: r.linhas.map((l) => ({ ...l, contei: l.produtoId === kbPreto.id ? 6 : l.produtoId === anilha.id ? 6 : l.contei })),
+      linhas: r.linhas.map((l) => ({ ...l, contei: l.produtoId === kettlebell.id ? 6 : l.produtoId === anilha.id ? 6 : l.contei })),
     });
     concluirAcerto({ ...r, pagamento: { valorCentavos: 5880, forma: 'pix', data: DATA_ACERTO_ANTERIOR_B } });
 
@@ -217,23 +216,24 @@ export function carregarExemplo(): ResumoExemplo {
         termoAssinado: true,
         termoData: '2026-09-16',
         mix: [
-          { produtoId: kbRosa.id, nivelIdeal: 12, precoEtiquetaCentavos: 1500 },
+          { produtoId: kettlebell.id, nivelIdeal: 12, precoEtiquetaCentavos: 1500 },
           { produtoId: display.id, nivelIdeal: 3, precoEtiquetaCentavos: 3500 },
         ],
       },
       '2026-09-16',
     );
     instalar({ parceiroId: beta.id, expositorIds: [exp2.id], itens: [
-      { produtoId: kbRosa.id, quantidade: 12 },
+      { produtoId: kettlebell.id, quantidade: 12 },
       { produtoId: display.id, quantidade: 3 },
     ], data: '2026-09-16' });
 
     // Exemplo G: "2 mesas de 8" Kettlebell Preto com 1 peça perdida → 15 boas em Casa,
     // baixa de 128 g de PLA Preto, 15 argolas e 15 saquinhos.
-    registrarProducao({ produtoId: kbPreto.id, qtdBoa: 15, qtdPerdida: 1, data: DATA_PRODUCAO_G });
+    registrarProducao({ produtoId: kettlebell.id, qtdBoa: 15, qtdPerdida: 1, data: DATA_PRODUCAO_G, cores: naCor(kettlebell, pla.Preto) });
 
     // Exemplo D — cliente Marina e o pedido #0001: 20 chaveiros com nome (peça personalizada na A1,
-    // 1 mesa com 20 peças, 120 g de PLA Branco, 3 h, 1 argola e 2 min por peça, 1 h de modelagem).
+    // 1 mesa com 20 peças, 120 g de PLA, 3 h, 1 argola e 2 min por peça, 1 h de modelagem). Como no produto, o
+    // orçamento usa o tipo do filamento (custo médio do kg do PLA) e a cor é escolhida quando o pedido fica pronto.
     const marina = salvarCliente({ nome: 'Marina', whatsapp: '(71) 99999-8888', cidade: 'Salvador', comoConheceu: 'instagram', aceitaNovidades: false });
     criarPedido({
       clienteId: marina.id,
@@ -244,7 +244,7 @@ export function carregarExemplo(): ResumoExemplo {
           tipo: 'personalizada',
           descricao: 'Chaveiro com nome',
           quantidade: 20,
-          mesas: [{ pecasPorMesa: 20, tempoMin: 180, impressoraId: a1.id, filamentos: [{ materialId: pla.Branco, gramas: 120 }] }],
+          mesas: [{ pecasPorMesa: 20, tempoMin: 180, impressoraId: a1.id, filamentos: [{ tipo: 'PLA', gramas: 120 }] }],
           componentes: [{ materialId: argola.id, quantidade: 1 }],
           maoDeObraMin: 2,
         },

@@ -1,4 +1,4 @@
-// Abas da área "Estoque": Produtos, Materiais, O que imprimir, Movimentações.
+// Abas da área "Estoque": Produtos, Materiais e O que imprimir. As movimentações abrem por um link (decisão 86).
 import { Abas } from '../../ui/index.ts';
 import './estoque.css';
 
@@ -10,7 +10,6 @@ export function EstoqueAbas({ ativa }: { ativa: 'produtos' | 'materiais' | 'impr
         { id: 'produtos', rotulo: 'Produtos', href: '/estoque/produtos' },
         { id: 'materiais', rotulo: 'Materiais', href: '/estoque/materiais' },
         { id: 'imprimir', rotulo: 'O que imprimir', href: '/estoque/imprimir' },
-        { id: 'movimentacoes', rotulo: 'Movimentações', href: '/estoque/movimentacoes' },
       ]}
     />
   );

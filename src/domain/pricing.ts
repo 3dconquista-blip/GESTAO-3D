@@ -2,12 +2,26 @@
 // Custos em reais (sem arredondar até o resultado final); preços em centavos.
 import type { Cents } from '../lib/money.ts';
 import { arredondarPreco, round4, toCents, toReais } from '../lib/money.ts';
-import type { Canal, Componente, ID, Impressora, Material, Mesa, ParametrosCusto } from '../data/types.ts';
+import type { Canal, Componente, ID, Impressora, Material, Mesa, MesaFilamento, ParametrosCusto, TipoFilamento } from '../data/types.ts';
 
 export interface ContextoCusto {
   custos: ParametrosCusto;
   impressora: (id: ID) => Impressora | undefined;
   material: (id: ID) => Material | undefined;
+  /** Custo do kg de um tipo de filamento (média dos carretéis do tipo). Usado quando a ficha guarda só o tipo. */
+  custoKgTipo?: (tipo: TipoFilamento) => number | undefined;
+}
+
+/**
+ * Custo do kg de uma posição de filamento: com tipo (produto sem cor), a média dos carretéis do tipo;
+ * com carretel específico (item de pedido, ficha antiga), o custo médio dele.
+ */
+export function custoKgDoSlot(f: MesaFilamento, ctx: ContextoCusto): number | undefined {
+  if (f.tipo) {
+    const medio = ctx.custoKgTipo?.(f.tipo);
+    if (medio != null) return medio;
+  }
+  return f.materialId ? ctx.material(f.materialId)?.custoMedio : undefined;
 }
 
 export interface FichaTecnica {
@@ -45,12 +59,12 @@ export function custoMesa(mesa: Mesa, ctx: ContextoCusto): CustoMesa {
   const avisos: string[] = [];
   let material = 0;
   for (const f of mesa.filamentos) {
-    const mat = ctx.material(f.materialId);
-    if (!mat) {
-      avisos.push('Filamento não encontrado em uma das mesas.');
+    const custoKg = custoKgDoSlot(f, ctx);
+    if (custoKg == null) {
+      avisos.push(f.tipo ? `Cadastre um filamento ${f.tipo} (com o custo do kg) para calcular o custo.` : 'Filamento não encontrado em uma das mesas.');
       continue;
     }
-    material += (f.gramas || 0) * custoPorGrama(mat);
+    material += (f.gramas || 0) * custoPorGrama({ custoMedio: custoKg });
   }
   const horas = (mesa.tempoMin || 0) / 60;
   const imp = ctx.impressora(mesa.impressoraId);

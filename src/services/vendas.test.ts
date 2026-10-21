@@ -5,7 +5,7 @@ import { db } from '../data/db.ts';
 import { custoProduto, saldoCasa } from '../data/selectors.ts';
 import { CASA } from '../data/types.ts';
 import { lancarMov } from './estoque.ts';
-import { calcularVenda, cancelarVenda, registrarVenda } from './vendas.ts';
+import { MOTIVO_DESFEITA, calcularVenda, cancelarVenda, desfazerVenda, registrarVenda } from './vendas.ts';
 
 let produtoId = '';
 let anilhaId = '';
@@ -178,5 +178,51 @@ describe('registrarVenda e cancelarVenda', () => {
     assert.throws(() => cancelarVenda(v.id, ''), /motivo/);
     assert.equal(db.get('vendas', v.id)?.cancelada, undefined);
     assert.equal(saldoCasa(produtoId), 8);
+  });
+
+  it('sem canal, a venda é presencial', () => {
+    const v = registrarVenda({ itens: dois(), forma: 'dinheiro' });
+    assert.equal(v.canal, 'presencial');
+    assert.equal(db.get('vendas', v.id)?.canal, 'presencial');
+  });
+});
+
+describe('desfazerVenda', () => {
+  it('devolve os itens para Casa e estorna o pagamento na data da venda; a venda fica cancelada', () => {
+    const v = registrarVenda({ itens: dois(), forma: 'cartao', canal: 'whatsapp', data: '2026-09-30' });
+    assert.equal(saldoCasa(produtoId), 8);
+    const d = desfazerVenda(v.id);
+    assert.equal(d.cancelada, true);
+    assert.equal(d.canceladaEm, '2026-09-30');
+    assert.equal(d.motivoCancelamento, MOTIVO_DESFEITA);
+    assert.equal(saldoCasa(produtoId), 10);
+
+    const est = db.all('movEstoque').find((m) => m.tipo === 'estorno');
+    assert.equal(est?.refId, v.id);
+    assert.equal(est?.destino, CASA);
+    assert.equal(est?.data, '2026-09-30');
+
+    const pags = db.all('pagamentos');
+    assert.equal(pags.length, 2);
+    const dev = pags.find((p) => p.estornoDe);
+    assert.equal(dev?.direcao, 'pago');
+    assert.equal(dev?.tipo, 'devolucao');
+    assert.equal(dev?.valorCentavos, 3000);
+    assert.equal(dev?.taxaCentavos, 120);
+    assert.equal(dev?.data, '2026-09-30');
+    assert.equal(dev?.observacao, MOTIVO_DESFEITA);
+
+    // Nada é apagado: a venda continua no histórico.
+    assert.equal(db.all('vendas').length, 1);
+    assert.equal(db.all('movEstoque').filter((m) => m.refId === v.id).length, 2);
+  });
+
+  it('não desfaz duas vezes nem venda inexistente', () => {
+    const v = registrarVenda({ itens: dois(), forma: 'pix' });
+    desfazerVenda(v.id);
+    assert.throws(() => desfazerVenda(v.id), /já foi cancelada/);
+    assert.throws(() => desfazerVenda('x'), /não encontrada/);
+    assert.equal(saldoCasa(produtoId), 10);
+    assert.equal(db.all('pagamentos').length, 2);
   });
 });

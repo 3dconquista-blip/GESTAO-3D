@@ -36,7 +36,7 @@ export function pecasNosExpositores(): Record<ID, number> {
   return out;
 }
 
-/** Itens de catálogo reservados em Casa por pedidos aprovados, em produção ou prontos (ainda não baixados). */
+/** Itens de catálogo reservados em Casa por pedidos em produção ou prontos (ainda não baixados). */
 export function reservasAtuais(): Map<ID, number> {
   return reservasDePedidos(db.all('pedidos'));
 }

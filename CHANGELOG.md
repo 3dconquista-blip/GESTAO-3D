@@ -5,6 +5,46 @@ Formato: [vX.Y.Z] - AAAA-MM-DD
 
 ---
 
+## [v2.0.0] - 2026-10-21
+
+App simplificado pelo princípio de Pareto (80/20): cada tela mostra o que se usa quase sempre e o resto fica em
+"Mais detalhes". Registrar produção, compra, venda, pagamento, acerto e remessa não abre mais janela de confirmação:
+o aviso traz "Desfazer". Os dados já gravados continuam valendo (decisões 85 a 101).
+
+### Alterado
+- Produto sem cor fixa: a ficha guarda o tipo do filamento (PLA, PETG...) e as gramas; a cor é escolhida em cada
+  produção, com botões de cor já marcando a última usada. O custo usa a média do kg dos carretéis do tipo, e o estoque
+  do produto não separa por cor. "O que imprimir" soma o filamento por tipo (todas as cores)
+- Cadastro de produto em um cartão (nome, peças por mesa, tempo, gramas e preço); filamento só com tipo, cor, custo do
+  kg e quanto tem; compra de material cadastra uma cor nova na hora
+- Venda rápida em 3 toques (produtos, forma de pagamento e Registrar), com "Desfazer" que devolve o carrinho
+- Pedidos: "Aprovado" e "Em produção" viraram uma etapa só; peça personalizada só com descrição, quantidade, tempo,
+  gramas e tipo, e a cor escolhida ao passar para "Pronto"; título automático; formulário e detalhe enxutos
+- Cliente só com nome e WhatsApp à vista
+- Parceiros: uma tela só no lugar das 3 abas; cadastro em 6 campos; "Levar peças" faz a instalação e a reposição;
+  acerto em 3 passos (Contagem, Reposição e Fechar), e o acerto final já encerra a parceria; expositor só com o custo
+- Início mostra o que fazer hoje numa lista só, mais a receita e o lucro do mês
+- Relatórios em 3 abas (Resultado, Vendas e Materiais) e Configurações em 5 seções
+- Primeiro acesso em 2 passos (empresa e impressora, depois filamentos)
+
+### Adicionado
+- App publicado na internet pelo GitHub Pages, com dados no Supabase (passo a passo em `PUBLICAR.md`)
+- "Entrar na minha conta" no primeiro acesso e link para configurar outro aparelho em Configurações > Dados
+
+### Removido
+- Calculadora e Simulador de preço (o preço por canal fica no produto e a cotação avulsa é o orçamento do pedido)
+- Campos "Modelo" e "Cor" do produto, "Duplicar para outra cor", checklist do pedido e a aba Movimentações do Estoque
+  (continua como link na lista de produtos)
+
+### Corrigido
+- Sincronização na nuvem: um aparelho novo não sobrescreve mais os dados da nuvem (busca antes de enviar, e o banco
+  recusa gravar uma versão mais velha por cima de uma mais nova)
+- Itens de catálogo em pedidos eram gravados sem o custo do filamento
+- Tocar no texto de um campo com botões (forma de pagamento, cores, contador) mudava o valor sem querer
+- Ao ir de "editar pedido" direto para "novo pedido", o formulário herdava os dados anteriores
+
+---
+
 ## [v1.1.0] - 2026-10-19
 
 ### Adicionado

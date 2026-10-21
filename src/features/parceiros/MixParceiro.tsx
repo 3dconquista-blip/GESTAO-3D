@@ -24,7 +24,7 @@ export function MixParceiro({ params }: TelaProps) {
     try {
       salvarMix(p.id, mix);
       avisar('Mix salvo');
-      navegar(p.instaladoEm ? `/parceiros/${p.id}` : `/parceiros/${p.id}/instalacao`);
+      navegar(p.instaladoEm ? `/parceiros/${p.id}` : `/parceiros/${p.id}/levar`);
     } catch (e) {
       avisar(e instanceof Error ? e.message : String(e), 'ruim');
     }
@@ -67,7 +67,7 @@ export function MixParceiro({ params }: TelaProps) {
       </Cartao>
       <div class="barra-acoes-fixa">
         <Botao variante="primario" icone="check" onClick={salvar}>
-          {p.instaladoEm ? 'Salvar mix' : 'Salvar e instalar'}
+          {p.instaladoEm ? 'Salvar mix' : 'Salvar e levar peças'}
         </Botao>
       </div>
     </Pagina>

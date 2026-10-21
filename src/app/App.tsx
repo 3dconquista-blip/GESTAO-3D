@@ -62,7 +62,6 @@ function MenuLateral({ secao, empresa }: { secao: Secao | null; empresa: string 
         <a href="#/venda">Venda rápida</a>
         <a href="#/vendas">Vendas</a>
         <a href="#/clientes">Clientes</a>
-        <a href="#/calculadora">Calculadora de preço</a>
         <a href="#/relatorios">Relatórios</a>
         <a href="#/config">Configurações</a>
       </div>
@@ -149,7 +148,8 @@ export function App() {
         <AvisoBackup />
         <LimiteErro chave={local.caminho}>
           {Tela ? (
-            <Tela params={achada!.params} query={local.query} />
+            // key: trocar de caminho remonta a tela (ex.: de "editar pedido" para "novo pedido" não herda o estado).
+            <Tela key={local.caminho} params={achada!.params} query={local.query} />
           ) : (
             <div class="pagina">
               <h1>Página não encontrada</h1>

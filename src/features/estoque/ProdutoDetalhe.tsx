@@ -1,44 +1,17 @@
-// Detalhe do produto: dados, ficha técnica e custo, simulador de preço, saldo por local e histórico.
-import { useState } from 'preact/hooks';
+// Detalhe do produto, enxuto (decisão 86): estoque e preço no topo, "Registrar produção" como ação principal;
+// ficha, custo, preço por canal, saldo por local, histórico e ações raras em blocos recolhidos.
 import { navegar, type TelaProps } from '../../app/router.ts';
 import { db } from '../../data/db.ts';
 import { ROTULO_TIPO_MOV } from '../../data/defaults.ts';
 import { useDb } from '../../data/hooks.ts';
-import { composicaoProduto, custoProduto, custosDoProduto, margemDoProduto, materiaisAtivos, nomeMaterial, saldosDoProduto } from '../../data/selectors.ts';
-import type { LocalId, MovEstoque, Produto } from '../../data/types.ts';
+import { composicaoProduto, custoProduto, custosDoProduto, margemDoProduto, nomeMaterial, saldosDoProduto } from '../../data/selectors.ts';
+import type { LocalId, MovEstoque } from '../../data/types.ts';
 import { CASA, parceiroDoLocal } from '../../data/types.ts';
+import { tipoDoSlot } from '../../domain/filamento.ts';
 import { simular } from '../../domain/pricing.ts';
 import { formatBRL, formatData, formatDuracao, formatGramas, formatPct, formatQtd, formatReais } from '../../lib/format.ts';
-import {
-  alertaLicenca,
-  arquivarProduto,
-  copiarProduto,
-  duplicarParaOutraCor,
-  excluirProduto,
-  nomeParaCor,
-  previaExclusao,
-  salvarProduto,
-} from '../../services/produtos.ts';
-import {
-  Aviso,
-  Botao,
-  Campo,
-  Cartao,
-  Escolha,
-  Grade,
-  Indicador,
-  Linha,
-  Modal,
-  Pagina,
-  Resumo,
-  Selo,
-  Tabela,
-  Texto,
-  Vazio,
-  avisar,
-  confirmar,
-  type Coluna,
-} from '../../ui/index.ts';
+import { alertaLicenca, arquivarProduto, copiarProduto, excluirProduto, previaExclusao, salvarProduto } from '../../services/produtos.ts';
+import { Aviso, Botao, Cartao, Indicador, Linha, MaisDetalhes, Pagina, Resumo, Selo, Tabela, Vazio, avisar, confirmar, type Coluna } from '../../ui/index.ts';
 import { ComposicaoCustoView, SimuladorPreco } from '../precos/componentes.tsx';
 import { FotoProduto, SeloMargem } from './ProdutosLista.tsx';
 
@@ -50,71 +23,8 @@ export function nomeLocal(local: LocalId | null): string {
   return (pid && db.get('parceiros', pid)?.nome) || 'Parceiro';
 }
 
-function DuplicarCor({ p, aberto, onFechar }: { p: Produto; aberto: boolean; onFechar: () => void }) {
-  const filamentosDoProduto = Array.from(new Set(p.mesas.flatMap((m) => m.filamentos.map((f) => f.materialId))));
-  const [cor, setCor] = useState('');
-  const [de, setDe] = useState(filamentosDoProduto[0] ?? '');
-  const [para, setPara] = useState('');
-  const nome = cor.trim() ? nomeParaCor(p.nome, p.cor, cor) : '';
-  const duplicar = () => {
-    try {
-      const novo = duplicarParaOutraCor(p.id, { cor, trocarFilamento: de && para ? { de, para } : undefined });
-      avisar(`Criado ${novo.nome} (${novo.codigo})`);
-      onFechar();
-      navegar(`/estoque/produtos/${novo.id}`);
-    } catch (e) {
-      avisar(e instanceof Error ? e.message : String(e), 'ruim');
-    }
-  };
-  return (
-    <Modal
-      aberto={aberto}
-      titulo="Duplicar para outra cor"
-      onFechar={onFechar}
-      rodape={
-        <>
-          <Botao variante="fantasma" onClick={onFechar}>
-            Voltar
-          </Botao>
-          <Botao variante="primario" onClick={duplicar} disabled={!cor.trim()}>
-            Duplicar
-          </Botao>
-        </>
-      }
-    >
-      <p class="muted">Cria outro produto com a mesma ficha técnica e preço. Cada cor é um item de estoque separado.</p>
-      <Campo rotulo="Nova cor" obrigatorio>
-        <Texto value={cor} onInput={setCor} placeholder="Ex.: Rosa" autoFocus />
-      </Campo>
-      {filamentosDoProduto.length > 0 && (
-        <div class="campos-2">
-          <Campo rotulo="Trocar o filamento">
-            <Escolha value={de} onChange={setDe} opcoes={filamentosDoProduto.map((id) => ({ valor: id, rotulo: nomeMaterial(id) }))} />
-          </Campo>
-          <Campo rotulo="Pelo filamento">
-            <Escolha
-              value={para || null}
-              onChange={setPara}
-              placeholder="Manter o mesmo"
-              opcoes={materiaisAtivos('filamento')
-                .filter((m) => m.id !== de)
-                .map((m) => ({ valor: m.id, rotulo: m.nome }))}
-            />
-          </Campo>
-        </div>
-      )}
-      {nome && (
-        <p>
-          Nome do novo produto: <strong>{nome}</strong>
-        </p>
-      )}
-    </Modal>
-  );
-}
-
 export function ProdutoDetalhe({ params }: TelaProps) {
   useDb();
-  const [duplicando, setDuplicando] = useState(false);
   const p = db.get('produtos', params.id);
   if (!p) {
     return (
@@ -134,6 +44,7 @@ export function ProdutoDetalhe({ params }: TelaProps) {
     .sort((a, b) => b.data.localeCompare(a.data) || b.criadoEm.localeCompare(a.criadoEm));
   const locais = Array.from(saldos.porLocal.entries()).filter(([l, q]) => l === CASA || q !== 0);
   if (!saldos.porLocal.has(CASA)) locais.unshift([CASA, 0]);
+  const material = (id: string) => db.get('materiais', id);
 
   const usarPreco = async (c: number) => {
     const ok = await confirmar({ titulo: 'Trocar o preço de etiqueta?', itens: [`De ${formatBRL(p.precoEtiquetaCentavos)} para ${formatBRL(c)}.`, 'Vale para todos os canais. Vendas já feitas não mudam.'] });
@@ -210,57 +121,76 @@ export function ProdutoDetalhe({ params }: TelaProps) {
   return (
     <Pagina
       titulo={p.nome}
-      subtitulo={[p.codigo, p.categoria, p.modelo !== p.nome ? p.modelo : '', p.excluido ? 'Excluído' : p.arquivado ? 'Arquivado' : ''].filter(Boolean).join(' · ')}
+      subtitulo={[p.codigo, p.categoria, p.excluido ? 'Excluído' : p.arquivado ? 'Arquivado' : ''].filter(Boolean).join(' · ')}
       voltarPara="/estoque/produtos"
       acoes={
         p.excluido ? undefined : (
-          <Botao variante="primario" icone="editar" href={`/estoque/produtos/${p.id}/editar`}>
-            Editar
-          </Botao>
+          <>
+            <Botao variante="secundario" icone="editar" href={`/estoque/produtos/${p.id}/editar`}>
+              Editar
+            </Botao>
+            {!p.arquivado && (
+              <Botao variante="primario" icone="impressora" href={`/producao/nova?produto=${p.id}`}>
+                Registrar produção
+              </Botao>
+            )}
+          </>
         )
       }
     >
       {p.excluido && (
         <Aviso tom="info" titulo="Produto excluído">
-          Excluído{p.excluidoEm ? ` em ${formatData(p.excluidoEm)}` : ''}. Não aparece mais nas listas; o histórico abaixo continua guardado.
+          Excluído{p.excluidoEm ? ` em ${formatData(p.excluidoEm)}` : ''}. Não aparece mais nas listas; o histórico continua guardado.
         </Aviso>
       )}
       {!p.excluido && abaixo.length > 0 && (
         <Aviso tom="ruim" titulo="Margem abaixo da mínima">
-          Com o preço de etiqueta atual ({formatBRL(p.precoEtiquetaCentavos)}): {abaixo.join(', ')}. Confira o simulador abaixo.
+          Com o preço de etiqueta atual ({formatBRL(p.precoEtiquetaCentavos)}): {abaixo.join(', ')}. Veja "Preço por canal" abaixo.
         </Aviso>
       )}
       {alertaLicenca(p) && <Aviso tom="atencao">Modelo de terceiro: confira se a licença permite vender.{p.linkModelo && <> <a href={p.linkModelo} target="_blank" rel="noopener">Abrir o modelo</a></>}</Aviso>}
 
       <div class="indicadores">
-        <Indicador rotulo="Custo por peça" valor={formatReais(custo)} detalhe={formatReais(custo, 4)} />
+        <Indicador rotulo="Em Casa" valor={formatQtd(saldos.casa)} tom={saldos.casa < 0 ? 'ruim' : saldos.casa < p.estoqueMinimo ? 'atencao' : undefined} detalhe={p.estoqueMinimo ? `mínimo ${formatQtd(p.estoqueMinimo)}` : undefined} />
+        <Indicador rotulo="Nos parceiros" valor={formatQtd(saldos.parceiros)} detalhe={`total ${formatQtd(saldos.total)}`} />
         <Indicador rotulo="Preço de etiqueta" valor={formatBRL(p.precoEtiquetaCentavos)} detalhe={<SeloMargem p={p} />} />
-        <Indicador rotulo="Em Casa" valor={formatQtd(saldos.casa)} tom={saldos.casa < 0 ? 'ruim' : saldos.casa < p.estoqueMinimo ? 'atencao' : undefined} detalhe={`mínimo ${formatQtd(p.estoqueMinimo)}`} />
-        <Indicador rotulo="Total" valor={formatQtd(saldos.total)} detalhe={`${formatQtd(saldos.parceiros)} nos parceiros`} />
+        <Indicador rotulo="Custo por peça" valor={formatReais(custo)} />
       </div>
 
-      <Grade colunas={2}>
-        <Cartao titulo="Ficha técnica" acoes={<FotoProduto p={p} tamanho={48} />}>
+      {!p.excluido && (
+        <Linha>
+          <Botao icone="copiar" onClick={copiar}>
+            Copiar produto
+          </Botao>
+          {!p.arquivado && (
+            <Botao icone="editar" href={`/estoque/ajuste?produto=${p.id}`}>
+              Ajuste ou perda
+            </Botao>
+          )}
+        </Linha>
+      )}
+
+      <MaisDetalhes titulo="Ficha, custo e preço por canal" resumo={`${p.mesas.length} mesa(s) · margem ${formatPct(margemDoProduto(p), 0)}`}>
+        <div class="est-ficha-topo">
+          <FotoProduto p={p} tamanho={48} />
           <div class="est-mesas">
             {p.mesas.map((m, i) => (
               <div key={m.id} class="est-mesa">
-                <strong>Mesa {i + 1}</strong>: {m.pecasPorMesa} peça(s) · {formatDuracao(m.tempoMin)} · {db.get('impressoras', m.impressoraId)?.nome ?? 'impressora removida'}
-                <br />
-                {m.filamentos.map((f) => `${nomeMaterial(f.materialId)} ${formatGramas(f.gramas)}`).join(' + ') || 'sem filamento'}
+                <strong>{p.mesas.length > 1 ? `Mesa ${i + 1}: ` : ''}</strong>
+                {m.pecasPorMesa} peça(s) · {formatDuracao(m.tempoMin)} · {m.filamentos.map((f) => `${formatGramas(f.gramas)} de ${tipoDoSlot(f, material)}`).join(' + ') || 'sem filamento'}
+                {db.all('impressoras').filter((x) => x.ativa).length > 1 && ` · ${db.get('impressoras', m.impressoraId)?.nome ?? 'impressora removida'}`}
               </div>
             ))}
-            <Resumo
-              linhas={[
-                { rotulo: 'Componentes por peça', valor: p.componentes.length ? p.componentes.map((c) => `${formatQtd(c.quantidade)} ${nomeMaterial(c.materialId)}`).join(', ') : 'nenhum' },
-                { rotulo: 'Mão de obra por peça', valor: `${formatQtd(p.maoDeObraMin, 1)} min` },
-              ]}
-            />
           </div>
-        </Cartao>
-        <Cartao titulo="Composição do custo">{comp && <ComposicaoCustoView composicao={comp} />}</Cartao>
-      </Grade>
-
-      <Cartao titulo="Simulador de preço">
+        </div>
+        <Resumo
+          linhas={[
+            { rotulo: 'Componentes por peça', valor: p.componentes.length ? p.componentes.map((c) => `${formatQtd(c.quantidade)} ${nomeMaterial(c.materialId)}`).join(', ') : 'nenhum' },
+            { rotulo: 'Mão de obra por peça', valor: `${formatQtd(p.maoDeObraMin, 1)} min` },
+            { rotulo: 'Margem de lucro', valor: p.margemPct != null ? `${formatPct(p.margemPct)} (deste produto)` : `${formatPct(margemDoProduto(p))} (padrão)` },
+          ]}
+        />
+        {comp && <ComposicaoCustoView composicao={comp} />}
         {/* Custo com precisão total, como no Exemplo A (preço exato 4,9747; os centavos não mudam). */}
         <SimuladorPreco
           key={`${p.id}-${p.precoEtiquetaCentavos}-${custo}-${p.margemPct}`}
@@ -269,80 +199,38 @@ export function ProdutoDetalhe({ params }: TelaProps) {
           onUsarPreco={p.excluido ? undefined : usarPreco}
           margemPct={p.margemPct}
         />
-      </Cartao>
+      </MaisDetalhes>
 
-      <Grade colunas={2}>
-        <Cartao titulo="Saldo por local">
+      <MaisDetalhes titulo="Onde estão as peças e histórico" resumo={`${movs.length} movimentação(ões)`}>
+        <Cartao titulo="Saldo por local" compacto>
           <Resumo linhas={[...locais.map(([l, q]) => ({ rotulo: nomeLocal(l), valor: <span class={q < 0 ? 'txt-ruim' : ''}>{formatQtd(q)}</span> })), { rotulo: 'Total', valor: formatQtd(saldos.total), destaque: true }]} />
         </Cartao>
-        <Cartao titulo="Dados">
-          <Resumo
-            linhas={[
-              { rotulo: 'Código', valor: p.codigo },
-              { rotulo: 'Modelo', valor: p.modelo },
-              p.cor ? { rotulo: 'Cor', valor: p.cor } : null,
-              { rotulo: 'Categoria', valor: p.categoria },
-              { rotulo: 'Origem do modelo', valor: p.origemModelo === 'proprio' ? 'Próprio' : 'De terceiro' },
-              {
-                rotulo: 'Margem de lucro',
-                valor: p.margemPct != null ? `${formatPct(p.margemPct)} (deste produto)` : `${formatPct(margemDoProduto(p))} (padrão)`,
-              },
-              {
-                rotulo: 'Situação',
-                valor: p.excluido ? (
-                  <Selo tom="ruim">Excluído{p.excluidoEm ? ` em ${formatData(p.excluidoEm)}` : ''}</Selo>
-                ) : p.arquivado ? (
-                  <Selo>Arquivado</Selo>
-                ) : (
-                  <Selo tom="ok">Ativo</Selo>
-                ),
-              },
-            ]}
-          />
-        </Cartao>
-      </Grade>
-
-      <Cartao
-        titulo="Histórico"
-        acoes={
-          movs.length > 0 ? (
-            <Botao pequeno variante="fantasma" href={`/estoque/movimentacoes?produto=${p.id}`}>
-              Ver em Movimentações
-            </Botao>
-          ) : undefined
-        }
-      >
         <Tabela colunas={colunasMov} linhas={movs.slice(0, 15)} chave={(m) => m.id} vazio={<p class="muted">Nenhuma movimentação ainda. A produção e as vendas aparecem aqui.</p>} />
-      </Cartao>
-
-      {!p.arquivado && (
-        <Linha>
-          <Botao variante="secundario" icone="impressora" href={`/producao/nova?produto=${p.id}`}>
-            Registrar produção
-          </Botao>
-          <Botao variante="secundario" icone="editar" href={`/estoque/ajuste?produto=${p.id}`}>
-            Ajuste ou perda
-          </Botao>
-        </Linha>
-      )}
+        {movs.length > 0 && (
+          <div>
+            <Botao pequeno variante="fantasma" href={`/estoque/movimentacoes?produto=${p.id}`}>
+              Ver todas as movimentações
+            </Botao>
+          </div>
+        )}
+      </MaisDetalhes>
 
       {!p.excluido && (
-        <Linha>
-          <Botao icone="copiar" onClick={copiar}>
-            Copiar produto
-          </Botao>
-          <Botao icone="camadas" onClick={() => setDuplicando(true)}>
-            Duplicar para outra cor
-          </Botao>
-          <Botao variante="fantasma" icone={p.arquivado ? 'atualizar' : 'arquivar'} onClick={arquivar}>
-            {p.arquivado ? 'Reativar produto' : 'Arquivar produto'}
-          </Botao>
-          <Botao variante="perigo" icone="lixeira" onClick={excluir}>
-            Excluir produto
-          </Botao>
-        </Linha>
+        <MaisDetalhes titulo="Mais ações" resumo={p.arquivado ? 'Arquivado' : undefined}>
+          <Linha>
+            <Botao variante="secundario" icone={p.arquivado ? 'atualizar' : 'arquivar'} onClick={arquivar}>
+              {p.arquivado ? 'Reativar produto' : 'Arquivar produto'}
+            </Botao>
+            <Botao variante="perigo" icone="lixeira" onClick={excluir}>
+              Excluir produto
+            </Botao>
+          </Linha>
+          <small class="muted">
+            Código {p.codigo} · {p.origemModelo === 'proprio' ? 'modelo próprio' : 'modelo de terceiro'} · situação{' '}
+            {p.arquivado ? <Selo>Arquivado</Selo> : <Selo tom="ok">Ativo</Selo>}
+          </small>
+        </MaisDetalhes>
       )}
-      {duplicando && <DuplicarCor p={p} aberto={duplicando} onFechar={() => setDuplicando(false)} />}
     </Pagina>
   );
 }

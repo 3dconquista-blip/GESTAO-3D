@@ -1,4 +1,5 @@
-// Cadastro e edição do expositor (8.2). Expositor perdido vira perda pelo custo.
+// Cadastro e edição do expositor (8.2), enxuto (decisão 97): só o custo à vista (o código sai sozinho); modelo,
+// capacidade, foto, onde está, estado e arquivar ficam em "Mais detalhes". Expositor perdido vira perda pelo custo.
 import { useState } from 'preact/hooks';
 import { navegar, type TelaProps } from '../../app/router.ts';
 import { db } from '../../data/db.ts';
@@ -6,7 +7,7 @@ import { useDb } from '../../data/hooks.ts';
 import type { EstadoExpositor } from '../../data/types.ts';
 import { formatBRL, formatData } from '../../lib/format.ts';
 import { arquivarExpositor, desarquivarExpositor, marcarEstadoExpositor, moverExpositor, proximoCodigoExpositor, salvarExpositor, type DadosExpositor } from '../../services/expositores.ts';
-import { Aviso, Botao, Campo, Cartao, Dinheiro, Escolha, Foto, Numero, Pagina, Segmentado, Texto, Vazio, avisar, confirmar } from '../../ui/index.ts';
+import { Aviso, Botao, Campo, Cartao, Dinheiro, Escolha, Foto, MaisDetalhes, Numero, Pagina, Segmentado, Texto, Vazio, avisar, confirmar } from '../../ui/index.ts';
 
 export function ExpositorForm({ params }: TelaProps) {
   useDb();
@@ -64,28 +65,31 @@ export function ExpositorForm({ params }: TelaProps) {
     <Pagina titulo={atual ? atual.codigo : 'Novo expositor'} voltarPara="/parceiros/expositores" largura="estreita">
       <Cartao>
         <div class="formulario">
-          <div class="campos-2">
-            <Campo rotulo="Código">
-              <Texto value={d.codigo} onInput={(v) => mudar({ codigo: v })} />
-            </Campo>
-            <Campo rotulo="Modelo">
-              <Texto value={d.modelo} onInput={(v) => mudar({ modelo: v })} placeholder="Ex.: painel de ganchos" />
-            </Campo>
-            <Campo rotulo="Capacidade (ganchos ou vagas)">
-              <Numero value={d.capacidade} onChange={(v) => mudar({ capacidade: v ?? 0 })} decimais={0} min={0} stepper />
-            </Campo>
-            <Campo rotulo="Custo">
-              <Dinheiro value={d.custoCentavos} onChange={(v) => mudar({ custoCentavos: v ?? 0 })} />
-            </Campo>
-          </div>
-          <Campo rotulo="Foto (opcional)">
-            <Foto value={d.fotoDataUrl} onChange={(v) => mudar({ fotoDataUrl: v })} />
+          <Campo rotulo="Quanto custou" dica="Para saber em quanto tempo ele se paga em cada parceiro">
+            <Dinheiro value={d.custoCentavos} onChange={(v) => mudar({ custoCentavos: v ?? 0 })} autoFocus={!atual} />
           </Campo>
         </div>
       </Cartao>
 
+      <MaisDetalhes titulo="Código, modelo e foto" resumo={[d.codigo, d.modelo].filter(Boolean).join(' · ') || undefined}>
+        <div class="campos-2">
+          <Campo rotulo="Código">
+            <Texto value={d.codigo} onInput={(v) => mudar({ codigo: v })} />
+          </Campo>
+          <Campo rotulo="Modelo">
+            <Texto value={d.modelo} onInput={(v) => mudar({ modelo: v })} placeholder="Ex.: painel de ganchos" />
+          </Campo>
+          <Campo rotulo="Capacidade (ganchos ou vagas)">
+            <Numero value={d.capacidade} onChange={(v) => mudar({ capacidade: v ?? 0 })} decimais={0} min={0} stepper />
+          </Campo>
+        </div>
+        <Campo rotulo="Foto">
+          <Foto value={d.fotoDataUrl} onChange={(v) => mudar({ fotoDataUrl: v })} />
+        </Campo>
+      </MaisDetalhes>
+
       {atual && (
-        <Cartao titulo="Onde está e estado">
+        <MaisDetalhes titulo="Onde está e estado" resumo={`${atual.parceiroId ? (db.get('parceiros', atual.parceiroId)?.nome ?? 'Parceiro') : 'Casa'} · ${atual.estado === 'ok' ? 'ok' : atual.estado}`}>
           <div class="formulario">
             {atual.estado === 'perdido' ? (
               <Aviso tom="ruim">Perdido em {formatData(atual.perdidoEm)} — perda de {formatBRL(atual.custoCentavos)}.</Aviso>
@@ -111,7 +115,7 @@ export function ExpositorForm({ params }: TelaProps) {
               </Botao>
             </div>
           </div>
-        </Cartao>
+        </MaisDetalhes>
       )}
 
       <div class="barra-acoes-fixa">

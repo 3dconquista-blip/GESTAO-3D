@@ -43,7 +43,7 @@ describe('Exemplo B — acerto 70/30 quinzenal (Academia Alfa)', () => {
   it('rascunho de 16/10: esperado 10, 8 e 6; período desde 01/10; 30%', () => {
     const r = montarRascunho(parceiro('Academia Alfa').id, DATA_VISITA_BC);
     const esp = Object.fromEntries(r.linhas.map((l) => [db.get('produtos', l.produtoId)!.nome, l.esperado]));
-    assert.deepEqual(esp, { 'Chaveiro Anilha Vermelha': 8, 'Chaveiro Halter Cinza': 6, 'Chaveiro Kettlebell Preto': 10 });
+    assert.deepEqual(esp, { 'Chaveiro Anilha': 8, 'Chaveiro Halter': 6, 'Chaveiro Kettlebell': 10 });
     assert.equal(r.dataAnterior, '2026-10-01');
     assert.equal(r.pctParceiro, 30);
     assert.equal(r.pixDiretoCentavos, 0);
@@ -53,15 +53,15 @@ describe('Exemplo B — acerto 70/30 quinzenal (Academia Alfa)', () => {
     const alfa = parceiro('Academia Alfa');
     let r = montarRascunho(alfa.id, DATA_VISITA_BC);
     r = contar(r, {
-      'Chaveiro Kettlebell Preto': { contei: 4 },
-      'Chaveiro Anilha Vermelha': { contei: 5 },
-      'Chaveiro Halter Cinza': { contei: 6 },
+      'Chaveiro Kettlebell': { contei: 4 },
+      'Chaveiro Anilha': { contei: 5 },
+      'Chaveiro Halter': { contei: 6 },
     });
     const res = resultadoDoRascunho(r);
     const vend = Object.fromEntries(res.linhas.map((l) => [db.get('produtos', l.produtoId)!.nome, [l.vendidos, l.repostos, l.estoqueFinal]]));
-    assert.deepEqual(vend['Chaveiro Kettlebell Preto'], [6, 6, 10]);
-    assert.deepEqual(vend['Chaveiro Anilha Vermelha'], [3, 3, 8]);
-    assert.deepEqual(vend['Chaveiro Halter Cinza'], [0, 0, 6]);
+    assert.deepEqual(vend['Chaveiro Kettlebell'], [6, 6, 10]);
+    assert.deepEqual(vend['Chaveiro Anilha'], [3, 3, 8]);
+    assert.deepEqual(vend['Chaveiro Halter'], [0, 0, 6]);
     assert.equal(res.pecasVendidas, 9);
     assert.equal(res.bruto, 12600);
     assert.equal(res.parteParceiro, 3780);
@@ -76,13 +76,13 @@ describe('Exemplo B — acerto 70/30 quinzenal (Academia Alfa)', () => {
     const a = concluirAcerto({ ...r, pagamento: { valorCentavos: 8820, forma: 'pix', data: DATA_VISITA_BC } });
     assert.equal(a.statusPagamento, 'pago');
     assert.equal(a.proximoAcerto, '2026-10-31');
-    assert.equal(saldoNoParceiro(produto('Chaveiro Kettlebell Preto').id, alfa.id), 10);
-    assert.equal(saldoNoParceiro(produto('Chaveiro Anilha Vermelha').id, alfa.id), 8);
-    assert.equal(saldoNoParceiro(produto('Chaveiro Halter Cinza').id, alfa.id), 6);
+    assert.equal(saldoNoParceiro(produto('Chaveiro Kettlebell').id, alfa.id), 10);
+    assert.equal(saldoNoParceiro(produto('Chaveiro Anilha').id, alfa.id), 8);
+    assert.equal(saldoNoParceiro(produto('Chaveiro Halter').id, alfa.id), 6);
 
     // Halter sem venda neste acerto e no anterior: parado.
     const d = desempenhoParceiro({ parceiro: alfa, acertos: db.all('acertos'), expositores: db.all('expositores'), parceiros: db.all('parceiros'), saldoAtual: (id) => saldoNoParceiro(id, alfa.id) });
-    assert.deepEqual(d.itensParados.map((i) => db.get('produtos', i.produtoId)!.nome), ['Chaveiro Halter Cinza']);
+    assert.deepEqual(d.itensParados.map((i) => db.get('produtos', i.produtoId)!.nome), ['Chaveiro Halter']);
     const ultimaLinha = d.porAcerto[d.porAcerto.length - 1];
     assert.equal(ultimaLinha.dias, 15);
     assert.equal(ultimaLinha.giroPct, 37.5);
@@ -101,10 +101,10 @@ describe('Exemplo B — acerto 70/30 quinzenal (Academia Alfa)', () => {
 
   it('reabrir o último acerto devolve o estoque e o rascunho', () => {
     const alfa = parceiro('Academia Alfa');
-    const kb = produto('Chaveiro Kettlebell Preto');
+    const kb = produto('Chaveiro Kettlebell');
     const casaAntes = saldoCasa(kb.id);
     let r = montarRascunho(alfa.id, DATA_VISITA_BC);
-    r = contar(r, { 'Chaveiro Kettlebell Preto': { contei: 4 }, 'Chaveiro Anilha Vermelha': { contei: 5 } });
+    r = contar(r, { 'Chaveiro Kettlebell': { contei: 4 }, 'Chaveiro Anilha': { contei: 5 } });
     const a = concluirAcerto({ ...r, pagamento: { valorCentavos: 8820, forma: 'pix', data: DATA_VISITA_BC } });
     assert.equal(saldoCasa(kb.id), casaAntes - 6);
     assert.equal(podeReabrir(a.id), true);
@@ -130,12 +130,12 @@ describe('Exemplo C — acerto 80/20 mensal com avaria, PIX no expositor e pagam
 
   it('números do Exemplo C, pendência de R$ 32,00 e pendência anterior no próximo acerto', () => {
     const beta = parceiro('Loja Beta');
-    const rosa = produto('Chaveiro Kettlebell Rosa');
+    const rosa = produto('Chaveiro Kettlebell');
     const display = produto('Display PIX');
     let r = montarRascunho(beta.id, DATA_VISITA_BC);
     assert.equal(r.pixDiretoCentavos, null); // "Ambos": começa vazio
     assert.deepEqual(r.linhas.map((l) => l.esperado).sort((a, b) => a - b), [3, 12]);
-    r = contar(r, { 'Chaveiro Kettlebell Rosa': { contei: 5, avariados: 1 }, 'Display PIX': { contei: 2 } });
+    r = contar(r, { 'Chaveiro Kettlebell': { contei: 5, avariados: 1 }, 'Display PIX': { contei: 2 } });
     r = { ...r, pixDiretoCentavos: 3000, pixEditado: true, pagamento: { valorCentavos: 5000, forma: 'pix', data: DATA_VISITA_BC } };
     const res = resultadoDoRascunho(r);
     const linha = (id: string) => res.linhas.find((l) => l.produtoId === id)!;
@@ -157,7 +157,7 @@ describe('Exemplo C — acerto 80/20 mensal com avaria, PIX no expositor e pagam
     const pend = pendenciasDoParceiro(beta.id, '2026-10-17');
     assert.equal(pend.saldo!.aReceber, 3200);
     assert.equal(pend.vencida.valorCentavos, 3200);
-    // Avaria: 1 Kettlebell Rosa vira perda pelo custo.
+    // Avaria: 1 Kettlebell vira perda pelo custo.
     const perdas = db.all('movEstoque').filter((m) => m.refId === a.id && m.tipo === 'perda');
     assert.equal(perdas.length, 1);
     assert.equal(perdas[0].quantidade, 1);
@@ -183,7 +183,7 @@ describe('Exemplo C — acerto 80/20 mensal com avaria, PIX no expositor e pagam
   it('pagamento da pendência fora da visita abate o acerto mais antigo', () => {
     const beta = parceiro('Loja Beta');
     let r = montarRascunho(beta.id, DATA_VISITA_BC);
-    r = contar(r, { 'Chaveiro Kettlebell Rosa': { contei: 5, avariados: 1 }, 'Display PIX': { contei: 2 } });
+    r = contar(r, { 'Chaveiro Kettlebell': { contei: 5, avariados: 1 }, 'Display PIX': { contei: 2 } });
     const a = concluirAcerto({ ...r, pixDiretoCentavos: 3000, pixEditado: true, pagamento: { valorCentavos: 5000, forma: 'pix', data: DATA_VISITA_BC } });
     assert.throws(() => registrarPagamentoParceiro({ parceiroId: beta.id, valorCentavos: 4000, forma: 'pix' }));
     registrarPagamentoParceiro({ parceiroId: beta.id, valorCentavos: 3200, forma: 'dinheiro', data: '2026-10-20' });
@@ -216,11 +216,11 @@ describe('Exemplo F — contagem maior que o esperado', () => {
     db.resetar();
     carregarExemplo();
     const alfa = parceiro('Academia Alfa');
-    const halter = produto('Chaveiro Halter Cinza');
+    const halter = produto('Chaveiro Halter');
     let r = montarRascunho(alfa.id, DATA_VISITA_BC);
-    r = contar(r, { 'Chaveiro Halter Cinza': { contei: 7 } });
+    r = contar(r, { 'Chaveiro Halter': { contei: 7 } });
     assert.match(bloqueioConclusao(r)!, /recont/i);
-    r = contar(r, { 'Chaveiro Halter Cinza': { contei: 7, recontagemConfirmada: true } });
+    r = contar(r, { 'Chaveiro Halter': { contei: 7, recontagemConfirmada: true } });
     const a = concluirAcerto(r);
     const item = a.itens.find((i) => i.produtoId === halter.id)!;
     assert.equal(item.vendidos, 0);
@@ -236,13 +236,13 @@ describe('Exemplo F — contagem maior que o esperado', () => {
     db.resetar();
     carregarExemplo();
     const alfa = parceiro('Academia Alfa');
-    const rosa = produto('Chaveiro Kettlebell Rosa');
+    const display = produto('Display PIX');
     let r = montarRascunho(alfa.id, DATA_VISITA_BC);
-    r = adicionarItemEncontrado(r, rosa.id, 2);
+    r = adicionarItemEncontrado(r, display.id, 2);
     const a = concluirAcerto(sugerir(r));
-    assert.equal(a.itens.find((i) => i.produtoId === rosa.id)!.ajusteEntrada, 2);
-    assert.equal(saldoNoParceiro(rosa.id, alfa.id), 2);
-    assert.ok(db.get('parceiros', alfa.id)!.mix.some((m) => m.produtoId === rosa.id));
+    assert.equal(a.itens.find((i) => i.produtoId === display.id)!.ajusteEntrada, 2);
+    assert.equal(saldoNoParceiro(display.id, alfa.id), 2);
+    assert.ok(db.get('parceiros', alfa.id)!.mix.some((m) => m.produtoId === display.id));
   });
 });
 
@@ -263,14 +263,14 @@ describe('validações do acerto', () => {
   it('não aceita receber mais do que o total de hoje', () => {
     const alfa = parceiro('Academia Alfa');
     let r = montarRascunho(alfa.id, DATA_VISITA_BC);
-    r = contar(r, { 'Chaveiro Kettlebell Preto': { contei: 9 } });
+    r = contar(r, { 'Chaveiro Kettlebell': { contei: 9 } });
     r = { ...r, pagamento: { valorCentavos: 99999, forma: 'pix', data: DATA_VISITA_BC } };
     assert.match(bloqueioConclusao(r)!, /passa do total/);
   });
   it('estoque mudou depois de começar a contagem: pede para atualizar', () => {
     const alfa = parceiro('Academia Alfa');
     const r = montarRascunho(alfa.id, DATA_VISITA_BC);
-    db.tx((t) => t.insert('movEstoque', { data: DATA_VISITA_BC, produtoId: produto('Chaveiro Halter Cinza').id, quantidade: 1, origem: 'casa', destino: `p:${alfa.id}`, tipo: 'remessa', custoUnit: 2.4873 }));
+    db.tx((t) => t.insert('movEstoque', { data: DATA_VISITA_BC, produtoId: produto('Chaveiro Halter').id, quantidade: 1, origem: 'casa', destino: `p:${alfa.id}`, tipo: 'remessa', custoUnit: 2.4873 }));
     assert.match(bloqueioConclusao(r)!, /mudou/);
   });
 });

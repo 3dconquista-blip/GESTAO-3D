@@ -1,6 +1,6 @@
-// "Relatórios" (11.2): filtro de período (esta quinzena, quinzena anterior, este mês, mês anterior,
-// personalizado) e as seções resultado, vendas por canal, parceiros, produtos, materiais, dinheiro que entrou
-// e receita do ano. Cada seção exporta CSV. Os números vêm de services/relatorios.ts.
+// "Relatórios" (11.2), em 3 abas (decisão 99): Resultado (com por canal, dinheiro que entrou e o ano em "Mais
+// detalhes"), Vendas (produtos e parceiros) e Materiais. Filtro de período (esta quinzena, quinzena anterior, este
+// mês, mês anterior, personalizado). Cada seção exporta CSV. Os números vêm de services/relatorios.ts.
 import { useState } from 'preact/hooks';
 import type { TelaProps } from '../../app/router.ts';
 import { db } from '../../data/db.ts';
@@ -48,8 +48,8 @@ import {
   Dica,
   Escolha,
   GraficoBarras,
-  Grade,
   Indicador,
+  MaisDetalhes,
   Pagina,
   Resumo,
   Segmentado,
@@ -61,17 +61,16 @@ import {
 } from '../../ui/index.ts';
 import './relatorios.css';
 
-type SecaoRel = 'resultado' | 'canais' | 'parceiros' | 'produtos' | 'materiais' | 'dinheiro' | 'ano';
+type SecaoRel = 'resultado' | 'vendas' | 'materiais';
 
 const ABAS: { id: SecaoRel; rotulo: string }[] = [
   { id: 'resultado', rotulo: 'Resultado' },
-  { id: 'canais', rotulo: 'Por canal' },
-  { id: 'parceiros', rotulo: 'Parceiros' },
-  { id: 'produtos', rotulo: 'Produtos' },
+  { id: 'vendas', rotulo: 'Vendas' },
   { id: 'materiais', rotulo: 'Materiais' },
-  { id: 'dinheiro', rotulo: 'Dinheiro' },
-  { id: 'ano', rotulo: 'Ano' },
 ];
+
+/** Links antigos (?secao=canais, parceiros...) abrem a aba que agora tem a seção. */
+const ABA_ANTIGA: Record<string, SecaoRel> = { canais: 'resultado', dinheiro: 'resultado', ano: 'resultado', parceiros: 'vendas', produtos: 'vendas' };
 
 const PERIODOS: { valor: Exclude<PeriodoChave, 'ano'>; rotulo: string }[] = [
   { valor: 'quinzena', rotulo: 'Esta quinzena' },
@@ -138,11 +137,8 @@ function SecaoResultado({ p }: { p: Intervalo }) {
           tom={r.lucroCentavos < 0 ? 'ruim' : r.lucroCentavos > 0 ? 'ok' : undefined}
           detalhe={r.margemPct != null ? `${formatPct(r.margemPct)} da receita` : undefined}
         />
-        <Indicador rotulo="Total vendido nos parceiros" valor={brl(r.totalVendidoParceirosCentavos)} detalhe="bruto, antes da divisão" />
-        <Indicador rotulo="Dinheiro que entrou" valor={brl(dinheiro.totalCentavos)} detalhe="pagamentos recebidos" />
       </div>
-      <Grade colunas={2}>
-        <Cartao titulo="Resultado do período" acoes={<BotaoCSV gerar={() => csvResultado(p)} />}>
+      <Cartao titulo="Resultado do período" acoes={<BotaoCSV gerar={() => csvResultado(p)} />}>
           <Resumo
             linhas={[
               { rotulo: 'Venda direta (menos taxa do cartão)', valor: brl(r.receitaPorCanal.direta) },
@@ -158,8 +154,9 @@ function SecaoResultado({ p }: { p: Intervalo }) {
           <small class="muted">
             Taxas de cartão já descontadas: {brl(r.taxasCartaoCentavos)}. Falhas de impressão não entram em perdas: já estão no custo pela taxa de falha.
           </small>
-        </Cartao>
-        <Cartao titulo="Perdas" acoes={r.perdas.linhas.length > 0 && <BotaoCSV gerar={() => csvPerdas(p)} />}>
+      </Cartao>
+      <MaisDetalhes titulo="Perdas" resumo={brl(r.perdasCentavos)}>
+        {r.perdas.linhas.length > 0 && <BotaoCSV gerar={() => csvPerdas(p)} />}
           <Resumo
             linhas={[
               { rotulo: 'Produtos (avaria, falta abonada, defeito...)', valor: brl(r.perdas.produtosCentavos) },
@@ -168,8 +165,13 @@ function SecaoResultado({ p }: { p: Intervalo }) {
             ]}
           />
           <Tabela colunas={colunasPerda} linhas={r.perdas.linhas} chave={(l) => `${l.tipo}-${l.refId}-${l.data}-${l.motivo}-${l.valorCentavos}`} vazio={<p class="muted">Nenhuma perda no período.</p>} />
-        </Cartao>
-      </Grade>
+      </MaisDetalhes>
+      <MaisDetalhes titulo="Por canal" resumo={`vendido nos parceiros ${brl(r.totalVendidoParceirosCentavos)}`}>
+        <SecaoCanais p={p} />
+      </MaisDetalhes>
+      <MaisDetalhes titulo="Dinheiro que entrou" resumo={brl(dinheiro.totalCentavos)}>
+        <SecaoDinheiro p={p} />
+      </MaisDetalhes>
     </>
   );
 }
@@ -504,8 +506,9 @@ function SecaoAno({ hoje }: { hoje: string }) {
 export function Relatorios({ query }: TelaProps) {
   useDb();
   const hoje = hojeISO();
-  const inicial = (query.get('secao') as SecaoRel | null) ?? 'resultado';
-  const [secao, setSecao] = useState<SecaoRel>(ABAS.some((a) => a.id === inicial) ? inicial : 'resultado');
+  const pedida = query.get('secao') ?? 'resultado';
+  const inicial = ABA_ANTIGA[pedida] ?? pedida;
+  const [secao, setSecao] = useState<SecaoRel>(ABAS.some((a) => a.id === inicial) ? (inicial as SecaoRel) : 'resultado');
   const [chave, setChave] = useState<Exclude<PeriodoChave, 'ano'>>('mes');
   const [de, setDe] = useState(inicioDoMes(hoje));
   const [ate, setAte] = useState(hoje);
@@ -516,8 +519,7 @@ export function Relatorios({ query }: TelaProps) {
   return (
     <Pagina titulo="Relatórios" voltarPara="/mais" largura="larga">
       <Abas abas={ABAS} ativa={secao} onMudar={(id) => setSecao(id as SecaoRel)} />
-      {secao !== 'ano' && (
-        <div class="rel-filtro">
+      <div class="rel-filtro">
           <Segmentado value={chave} onChange={setChave} opcoes={PERIODOS.map((x) => ({ valor: x.valor, rotulo: x.rotulo }))} />
           {chave === 'personalizado' && (
             <div class="rel-datas">
@@ -534,19 +536,26 @@ export function Relatorios({ query }: TelaProps) {
               {formatData(periodo.de)} a {formatData(periodo.ate)}
             </small>
           )}
-        </div>
-      )}
-      {secao !== 'ano' && !valido ? (
+      </div>
+      {!valido ? (
         <Aviso tom="atencao">Escolha uma data inicial antes da final.</Aviso>
       ) : (
         <>
-          {secao === 'resultado' && <SecaoResultado p={periodo} />}
-          {secao === 'canais' && <SecaoCanais p={periodo} />}
-          {secao === 'parceiros' && <SecaoParceiros p={periodo} />}
-          {secao === 'produtos' && <SecaoProdutos p={periodo} />}
+          {secao === 'resultado' && (
+            <>
+              <SecaoResultado p={periodo} />
+              <MaisDetalhes titulo="Receita do ano">
+                <SecaoAno hoje={hoje} />
+              </MaisDetalhes>
+            </>
+          )}
+          {secao === 'vendas' && (
+            <>
+              <SecaoProdutos p={periodo} />
+              <SecaoParceiros p={periodo} />
+            </>
+          )}
           {secao === 'materiais' && <SecaoMateriais p={periodo} />}
-          {secao === 'dinheiro' && <SecaoDinheiro p={periodo} />}
-          {secao === 'ano' && <SecaoAno hoje={hoje} />}
         </>
       )}
     </Pagina>

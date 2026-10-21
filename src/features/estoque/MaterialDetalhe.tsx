@@ -1,4 +1,5 @@
-// Detalhe do material: saldo, custo, produtos que usam e histórico de movimentos.
+// Detalhe do material, enxuto (decisão 86): saldo, custo e as duas ações do dia a dia (compra e "Pesei o
+// carretel"). Histórico, ajuste, perda e arquivar ficam em "Mais detalhes".
 import { useState } from 'preact/hooks';
 import type { TelaProps } from '../../app/router.ts';
 import { db } from '../../data/db.ts';
@@ -7,7 +8,7 @@ import { saldoMaterial } from '../../data/selectors.ts';
 import type { MovMaterial } from '../../data/types.ts';
 import { formatBRL, formatData, formatGramas, formatQtd } from '../../lib/format.ts';
 import { arquivarMaterial, bloqueioEstornoMaterial, estornarMovMaterial } from '../../services/materiais.ts';
-import { Botao, Cartao, Grade, Indicador, ItemLista, Linha, Lista, Pagina, Resumo, Selo, Tabela, Vazio, avisar, confirmar, type Coluna } from '../../ui/index.ts';
+import { Botao, Cartao, Indicador, ItemLista, Linha, Lista, MaisDetalhes, Pagina, Tabela, Vazio, avisar, confirmar, type Coluna } from '../../ui/index.ts';
 import { ModalAjusteMaterial, ModalPesagem } from './AcoesMaterial.tsx';
 import { ModalMotivo, executar } from './comum.tsx';
 import { AmostraCor } from './EstoqueAbas.tsx';
@@ -34,15 +35,15 @@ export function MaterialDetalhe({ params }: TelaProps) {
       </Pagina>
     );
   }
+  const fil = m.tipo === 'filamento';
   const saldo = saldoMaterial(m.id);
   const movs = db
     .all('movMateriais')
     .filter((x) => x.materialId === m.id)
     .sort((a, b) => b.data.localeCompare(a.data) || b.criadoEm.localeCompare(a.criadoEm));
-  const usadoEm = db
-    .all('produtos')
-    .filter((p) => !p.arquivado && (p.mesas.some((me) => me.filamentos.some((f) => f.materialId === m.id)) || p.componentes.some((c) => c.materialId === m.id)));
-  const qtd = (q: number) => (m.tipo === 'filamento' ? formatGramas(q) : `${formatQtd(q)} ${m.unidade}`);
+  // Filamento não fica preso a produto (decisão 85): só insumo tem "usado em".
+  const usadoEm = fil ? [] : db.all('produtos').filter((p) => !p.arquivado && !p.excluido && p.componentes.some((c) => c.materialId === m.id));
+  const qtd = (q: number) => (fil ? formatGramas(q) : `${formatQtd(q)} ${m.unidade}`);
 
   const colunas: Coluna<MovMaterial>[] = [
     { id: 'data', rotulo: 'Data', render: (x) => formatData(x.data), principal: true },
@@ -84,26 +85,24 @@ export function MaterialDetalhe({ params }: TelaProps) {
     <Pagina
       titulo={
         <span class="est-nome">
-          {m.tipo === 'filamento' && <AmostraCor hex={m.corHex} tamanho={26} />}
+          {fil && <AmostraCor hex={m.corHex} tamanho={26} />}
           {m.nome}
         </span>
       }
-      subtitulo={[m.tipo === 'filamento' ? m.material : 'Insumo', m.marca, m.arquivado ? 'Arquivado' : ''].filter(Boolean).join(' · ')}
+      subtitulo={[fil ? m.material : 'Insumo', m.marca, m.arquivado ? 'Arquivado' : ''].filter(Boolean).join(' · ')}
       voltarPara="/estoque/materiais"
       acoes={
-        <Botao variante="primario" icone="editar" href={`/estoque/materiais/${m.id}/editar`}>
+        <Botao variante="secundario" icone="editar" href={`/estoque/materiais/${m.id}/editar`}>
           Editar
         </Botao>
       }
     >
       <div class="indicadores">
-        <Indicador rotulo="Saldo" valor={textoSaldo(m, saldo)} tom={saldo < 0 ? 'ruim' : saldo < m.minimo ? 'atencao' : undefined} detalhe={<SeloMaterial m={m} saldo={saldo} />} />
+        <Indicador rotulo="Tem agora" valor={textoSaldo(m, saldo)} tom={saldo < 0 ? 'ruim' : saldo < m.minimo ? 'atencao' : undefined} detalhe={<SeloMaterial m={m} saldo={saldo} />} />
         <Indicador rotulo="Custo médio" valor={textoCusto(m)} />
-        <Indicador rotulo="Mínimo" valor={textoSaldo(m, m.minimo)} />
-        {m.tipo !== 'filamento' && <Indicador rotulo="Unidade" valor={m.unidade} />}
       </div>
 
-      {saldo < 0 && m.tipo === 'filamento' && (
+      {saldo < 0 && fil && (
         <Cartao tom="ruim" compacto>
           Saldo negativo: o consumo calculado passou do que foi registrado. Pese o carretel e ajuste o saldo.
         </Cartao>
@@ -111,22 +110,46 @@ export function MaterialDetalhe({ params }: TelaProps) {
 
       {!m.arquivado && (
         <Linha>
-          <Botao variante="secundario" icone="carrinho" href={`/compra?material=${m.id}`}>
-            Compra de material
+          <Botao variante="primario" icone="carrinho" href={`/compra?material=${m.id}`}>
+            Compra
           </Botao>
-          {m.tipo === 'filamento' && (
+          {fil && (
             <Botao variante="secundario" icone="balanca" onClick={() => setModal('pesagem')}>
               Pesei o carretel
             </Botao>
           )}
-          <Botao variante="fantasma" icone="editar" onClick={() => setModal('ajuste')}>
-            Ajuste
-          </Botao>
-          <Botao variante="fantasma" icone="alerta" onClick={() => setModal('perda')}>
-            Perda
-          </Botao>
         </Linha>
       )}
+
+      <MaisDetalhes titulo="Histórico e mais ações" resumo={movs.length ? `${movs.length} movimento(s)` : undefined}>
+        <Tabela colunas={colunas} linhas={movs} chave={(x) => x.id} vazio={<p class="muted">Nenhum movimento ainda.</p>} />
+        {usadoEm.length > 0 && (
+          <>
+            <strong>Usado em</strong>
+            <Lista>
+              {usadoEm.map((p) => (
+                <ItemLista key={p.id} titulo={p.nome} subtitulo={p.codigo} href={`/estoque/produtos/${p.id}`} />
+              ))}
+            </Lista>
+          </>
+        )}
+        <Linha>
+          {!m.arquivado && (
+            <>
+              <Botao variante="fantasma" icone="editar" onClick={() => setModal('ajuste')}>
+                Ajuste
+              </Botao>
+              <Botao variante="fantasma" icone="alerta" onClick={() => setModal('perda')}>
+                Perda
+              </Botao>
+            </>
+          )}
+          <Botao variante="fantasma" icone={m.arquivado ? 'atualizar' : 'arquivar'} onClick={arquivar}>
+            {m.arquivado ? 'Reativar' : 'Arquivar'}
+          </Botao>
+        </Linha>
+      </MaisDetalhes>
+
       {modal === 'pesagem' && <ModalPesagem material={m} onFechar={() => setModal(null)} />}
       {(modal === 'ajuste' || modal === 'perda') && <ModalAjusteMaterial material={m} modo={modal} onFechar={() => setModal(null)} />}
       {estornando && (
@@ -145,40 +168,6 @@ export function MaterialDetalhe({ params }: TelaProps) {
           </p>
         </ModalMotivo>
       )}
-
-      <Grade colunas={2}>
-        <Cartao titulo="Usado em">
-          {usadoEm.length ? (
-            <Lista>
-              {usadoEm.map((p) => (
-                <ItemLista key={p.id} titulo={p.nome} subtitulo={p.codigo} href={`/estoque/produtos/${p.id}`} />
-              ))}
-            </Lista>
-          ) : (
-            <p class="muted">Nenhum produto usa este material ainda.</p>
-          )}
-        </Cartao>
-        <Cartao titulo="Dados">
-          <Resumo
-            linhas={[
-              { rotulo: 'Tipo', valor: m.tipo === 'filamento' ? `Filamento ${m.material ?? ''}` : 'Insumo' },
-              m.corNome ? { rotulo: 'Cor', valor: m.corNome } : null,
-              m.marca ? { rotulo: 'Marca', valor: m.marca } : null,
-              { rotulo: 'Situação', valor: m.arquivado ? <Selo>Arquivado</Selo> : <Selo tom="ok">Ativo</Selo> },
-            ]}
-          />
-        </Cartao>
-      </Grade>
-
-      <Cartao titulo="Histórico de movimentos">
-        <Tabela colunas={colunas} linhas={movs} chave={(x) => x.id} vazio={<p class="muted">Nenhum movimento ainda.</p>} />
-      </Cartao>
-
-      <div>
-        <Botao variante="fantasma" icone={m.arquivado ? 'atualizar' : 'arquivar'} onClick={arquivar}>
-          {m.arquivado ? 'Reativar material' : 'Arquivar material'}
-        </Botao>
-      </div>
     </Pagina>
   );
 }

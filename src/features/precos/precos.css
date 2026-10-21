@@ -21,3 +21,6 @@
 .precos-etiqueta { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 10px 12px; background: var(--principal-claro); border-radius: var(--raio-p); }
 .precos-etiqueta strong { font-size: 1.1rem; color: var(--principal); }
 .precos-exato { font-size: 0.8rem; margin: 0; }
+/* Ficha do produto com uma mesa só: sem moldura; só gramas quando há um tipo de filamento. */
+.ficha-mesa-unica { border: 0; padding: 0; background: transparent; }
+@media (min-width: 560px) { .ficha-item.ficha-item-so-gramas { grid-template-columns: minmax(0, 1fr) 36px; } }

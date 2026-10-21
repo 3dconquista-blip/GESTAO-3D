@@ -1,4 +1,4 @@
-// Exemplo A da especificação: custo e preço do Chaveiro Kettlebell Preto.
+// Exemplo A da especificação: custo e preço do Chaveiro Kettlebell.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { configPadrao } from '../data/defaults.ts';

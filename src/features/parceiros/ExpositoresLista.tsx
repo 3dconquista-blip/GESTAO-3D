@@ -7,7 +7,6 @@ import type { Expositor } from '../../data/types.ts';
 import { retornoExpositor } from '../../domain/desempenho.ts';
 import { combinaBusca, formatBRL, formatPct } from '../../lib/format.ts';
 import { Botao, Busca, Cartao, Chave, Pagina, Selo, Tabela, Vazio, type Coluna } from '../../ui/index.ts';
-import { ParceirosAbas } from './comum.tsx';
 
 const TOM_ESTADO = { ok: 'ok', danificado: 'atencao', perdido: 'ruim' } as const;
 const ROTULO_ESTADO = { ok: 'Ok', danificado: 'Danificado', perdido: 'Perdido' } as const;
@@ -46,14 +45,14 @@ export function ExpositoresLista(_props: TelaProps) {
 
   return (
     <Pagina
-      titulo="Parceiros"
+      titulo="Expositores"
+      voltarPara="/parceiros"
       acoes={
         <Botao variante="primario" icone="plus" href="/parceiros/expositores/novo">
           Novo expositor
         </Botao>
       }
     >
-      <ParceirosAbas ativa="expositores" />
       <div class="est-filtros">
         <Busca value={busca} onInput={setBusca} placeholder="Buscar expositor..." />
         <span />

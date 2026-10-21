@@ -15,14 +15,11 @@ import { Movimentacoes } from '../features/estoque/Movimentacoes.tsx';
 import { RegistrarProducao } from '../features/estoque/RegistrarProducao.tsx';
 import { CompraMaterial } from '../features/estoque/CompraMaterial.tsx';
 import { AjusteEstoque } from '../features/estoque/AjusteEstoque.tsx';
-import { AgendaAcertos } from '../features/parceiros/Agenda.tsx';
-import { ParceirosLista } from '../features/parceiros/ParceirosLista.tsx';
+import { TelaParceiros } from '../features/parceiros/Parceiros.tsx';
 import { ParceiroForm } from '../features/parceiros/ParceiroForm.tsx';
 import { ParceiroDetalhe } from '../features/parceiros/ParceiroDetalhe.tsx';
 import { MixParceiro } from '../features/parceiros/MixParceiro.tsx';
-import { Instalacao } from '../features/parceiros/Instalacao.tsx';
-import { ReposicaoAvulsa } from '../features/parceiros/Reposicao.tsx';
-import { Recolher } from '../features/parceiros/Recolher.tsx';
+import { LevarPecas, Recolher } from '../features/parceiros/Remessas.tsx';
 import { EncerrarParceria } from '../features/parceiros/Encerrar.tsx';
 import { VisitaAcerto } from '../features/parceiros/Acerto.tsx';
 import { Comprovante } from '../features/parceiros/Comprovante.tsx';
@@ -38,8 +35,6 @@ import { ClienteDetalhe } from '../features/clientes/ClienteDetalhe.tsx';
 import { VendaRapida } from '../features/vendas/VendaRapida.tsx';
 import { VendasLista } from '../features/vendas/VendasLista.tsx';
 import { VendaDetalhe } from '../features/vendas/VendaDetalhe.tsx';
-import { SimuladorAvulso } from '../features/precos/Simulador.tsx';
-import { Calculadora } from '../features/precos/Calculadora.tsx';
 import { Relatorios } from '../features/relatorios/Relatorios.tsx';
 import { Configuracoes } from '../features/config/Configuracoes.tsx';
 import { Mais } from '../features/mais/Mais.tsx';
@@ -72,9 +67,10 @@ export const ROTAS: Rota[] = [
   { padrao: '/compra', tela: CompraMaterial, secao: 'estoque' },
 
   // Parceiros
-  { padrao: '/parceiros', tela: AgendaAcertos, secao: 'parceiros' },
-  { padrao: '/parceiros/agenda', tela: AgendaAcertos, secao: 'parceiros' },
-  { padrao: '/parceiros/lista', tela: ParceirosLista, secao: 'parceiros' },
+  { padrao: '/parceiros', tela: TelaParceiros, secao: 'parceiros' },
+  // Endereços antigos das abas "Agenda" e "Parceiros" levam à tela única.
+  { padrao: '/parceiros/agenda', tela: TelaParceiros, secao: 'parceiros' },
+  { padrao: '/parceiros/lista', tela: TelaParceiros, secao: 'parceiros' },
   { padrao: '/parceiros/novo', tela: ParceiroForm, secao: 'parceiros' },
   { padrao: '/parceiros/expositores', tela: ExpositoresLista, secao: 'parceiros' },
   { padrao: '/parceiros/expositores/novo', tela: ExpositorForm, secao: 'parceiros' },
@@ -82,8 +78,9 @@ export const ROTAS: Rota[] = [
   { padrao: '/parceiros/:id', tela: ParceiroDetalhe, secao: 'parceiros' },
   { padrao: '/parceiros/:id/editar', tela: ParceiroForm, secao: 'parceiros' },
   { padrao: '/parceiros/:id/mix', tela: MixParceiro, secao: 'parceiros' },
-  { padrao: '/parceiros/:id/instalacao', tela: Instalacao, secao: 'parceiros' },
-  { padrao: '/parceiros/:id/reposicao', tela: ReposicaoAvulsa, secao: 'parceiros' },
+  { padrao: '/parceiros/:id/levar', tela: LevarPecas, secao: 'parceiros' },
+  { padrao: '/parceiros/:id/instalacao', tela: LevarPecas, secao: 'parceiros' },
+  { padrao: '/parceiros/:id/reposicao', tela: LevarPecas, secao: 'parceiros' },
   { padrao: '/parceiros/:id/recolher', tela: Recolher, secao: 'parceiros' },
   { padrao: '/parceiros/:id/encerrar', tela: EncerrarParceria, secao: 'parceiros' },
   { padrao: '/parceiros/:id/acerto', tela: VisitaAcerto, secao: 'parceiros' },
@@ -105,8 +102,6 @@ export const ROTAS: Rota[] = [
   { padrao: '/clientes/novo', tela: ClienteForm, secao: 'mais' },
   { padrao: '/clientes/:id', tela: ClienteDetalhe, secao: 'mais' },
   { padrao: '/clientes/:id/editar', tela: ClienteForm, secao: 'mais' },
-  { padrao: '/simulador', tela: SimuladorAvulso, secao: 'mais' },
-  { padrao: '/calculadora', tela: Calculadora, secao: 'mais' },
   { padrao: '/relatorios', tela: Relatorios, secao: 'mais' },
   { padrao: '/config', tela: Configuracoes, secao: 'mais' },
   { padrao: '/config/:secao', tela: Configuracoes, secao: 'mais' },
@@ -125,7 +120,7 @@ export function resolverRota(caminho: string): { rota: Rota; params: Record<stri
 export const ACOES_RAPIDAS = [
   { rotulo: 'Venda rápida', icone: 'carrinho', href: '/venda' },
   { rotulo: 'Registrar produção', icone: 'impressora', href: '/producao/nova' },
-  { rotulo: 'Iniciar acerto', icone: 'parceiros', href: '/parceiros/agenda' },
+  { rotulo: 'Fazer acerto', icone: 'parceiros', href: '/parceiros' },
   { rotulo: 'Novo pedido', icone: 'pedidos', href: '/pedidos/novo' },
   { rotulo: 'Compra de material', icone: 'rolo', href: '/compra' },
 ];
@@ -133,7 +128,7 @@ export const ACOES_RAPIDAS = [
 export const MENU: { secao: Secao; rotulo: string; icone: string; href: string }[] = [
   { secao: 'inicio', rotulo: 'Início', icone: 'inicio', href: '/' },
   { secao: 'estoque', rotulo: 'Estoque', icone: 'estoque', href: '/estoque/produtos' },
-  { secao: 'parceiros', rotulo: 'Parceiros', icone: 'parceiros', href: '/parceiros/agenda' },
+  { secao: 'parceiros', rotulo: 'Parceiros', icone: 'parceiros', href: '/parceiros' },
   { secao: 'pedidos', rotulo: 'Pedidos', icone: 'pedidos', href: '/pedidos' },
   { secao: 'mais', rotulo: 'Mais', icone: 'mais', href: '/mais' },
 ];

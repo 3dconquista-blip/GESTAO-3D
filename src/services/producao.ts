@@ -1,5 +1,7 @@
 // "Registrar produção" (seção 7.4): as peças boas entram em Casa e os materiais da ficha técnica são baixados.
-// Filamento = para cada mesa e filamento, (gramas da mesa ÷ N) × (boas + perdidas); "Informar gramas reais" substitui.
+// Filamento = para cada mesa e filamento, (gramas da mesa ÷ N) × (boas + perdidas), baixado do carretel da cor
+// escolhida para aquela posição (decisão 85; sem escolha: a última cor usada no produto, a sugerida pela ficha ou
+// o carretel do tipo com mais saldo). "Informar gramas reais" substitui o cálculo.
 // Componentes = quantidade por peça × boas. O saldo de material pode ficar negativo (a tela mostra em vermelho).
 // A falha real não muda o custo do produto (o custo já tem a taxa de falha).
 import { db } from '../data/db.ts';
@@ -9,6 +11,8 @@ import { CASA } from '../data/types.ts';
 import { hojeISO } from '../lib/dates.ts';
 import { round4, roundTo } from '../lib/money.ts';
 import { consumoFicha } from '../domain/consumo.ts';
+import type { PosicaoFilamento } from '../domain/filamento.ts';
+import { carreteisDoTipo, carretelPadrao, posicoesDaFicha } from '../domain/filamento.ts';
 import { idsEstornados } from '../domain/stock.ts';
 import { ErroNegocio, estornarMov, lancarMov, saldoTx } from './estoque.ts';
 import { estornarMovsMaterialDaRef, lancarMovMaterial } from './materiais.ts';
@@ -22,6 +26,8 @@ export interface DadosProducao {
   data?: ISODate;
   /** "Informar gramas reais": total de gramas por filamento; substitui o cálculo pela ficha. */
   gramasReais?: MesaFilamento[];
+  /** Cor (carretel) de cada posição de filamento: 'mesaId:indice' -> materialId. Faltando, vale o padrão. */
+  cores?: Record<string, ID>;
 }
 
 export interface ConsumoPrevia {
@@ -63,11 +69,89 @@ function dataOuHoje(data?: ISODate | null): ISODate {
   return data;
 }
 
+/** Última cor usada em cada posição da ficha, nas produções não estornadas do produto (a mais recente vence). */
+function ultimasCores(produtoId: ID, producoes: Producao[]): Record<string, ID> {
+  const out: Record<string, ID> = {};
+  const doProduto = producoes
+    .filter((p) => p.produtoId === produtoId && !p.estornada && p.cores)
+    .sort((a, b) => a.data.localeCompare(b.data) || a.criadoEm.localeCompare(b.criadoEm));
+  for (const p of doProduto) Object.assign(out, p.cores);
+  return out;
+}
+
+/**
+ * Cor de cada posição de filamento: a escolhida; senão a última usada no produto; senão a sugerida pela ficha;
+ * senão o carretel ativo do tipo com mais saldo. Posição sem nenhum carretel do tipo fica sem cor.
+ */
+function resolverCores(
+  produto: Produto,
+  escolhidas: Record<string, ID> | undefined,
+  getMaterial: (id: ID) => Material | undefined,
+  todosMateriais: Material[],
+  producoes: Producao[],
+): Record<string, ID> {
+  const ultimas = ultimasCores(produto.id, producoes);
+  const out: Record<string, ID> = {};
+  for (const p of posicoesDaFicha(produto.mesas, getMaterial)) {
+    const escolhida = escolhidas?.[p.chave];
+    if (escolhida) {
+      const m = getMaterial(escolhida);
+      if (!m || m.tipo !== 'filamento') throw new ErroNegocio('A cor escolhida não é um filamento cadastrado.');
+      out[p.chave] = m.id;
+      continue;
+    }
+    const padrao = carretelPadrao(todosMateriais, p.tipo, saldoMaterial, [ultimas[p.chave], p.materialId]);
+    if (padrao) out[p.chave] = padrao.id;
+  }
+  return out;
+}
+
+export interface CorDaPosicao {
+  chave: string;
+  /** "PLA", ou "Mesa 2 (PLA)" quando o produto tem mais de uma posição. */
+  rotulo: string;
+  tipo: Material['material'];
+  /** Cor que será usada se nada for escolhido. */
+  padrao: ID | undefined;
+  /** Carretéis ativos do tipo, para escolher. */
+  opcoes: Material[];
+}
+
+/**
+ * Rótulo, cor padrão e cores disponíveis (carretéis ativos do tipo, pelo nome) de cada posição de filamento.
+ * Usado na produção e na baixa de peças personalizadas dos pedidos.
+ */
+export function coresDasPosicoes(posicoes: PosicaoFilamento[], padrao: Record<string, ID>, materiais: Material[]): CorDaPosicao[] {
+  const variasMesas = new Set(posicoes.map((p) => p.mesaId)).size > 1;
+  const variasCores = posicoes.some((p) => p.indice > 0);
+  return posicoes.map((p) => ({
+    chave: p.chave,
+    rotulo:
+      posicoes.length <= 1
+        ? p.tipo
+        : `${[variasMesas ? `Mesa ${p.mesaIndice + 1}` : '', variasCores ? `Cor ${p.indice + 1}` : ''].filter(Boolean).join(' · ')} (${p.tipo})`,
+    tipo: p.tipo,
+    padrao: padrao[p.chave],
+    opcoes: carreteisDoTipo(materiais, p.tipo).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
+  }));
+}
+
+/** Posições de filamento do produto com a cor padrão e as cores disponíveis (para a tela de produção). */
+export function coresDaProducao(produtoId: ID): CorDaPosicao[] {
+  const produto = db.get('produtos', produtoId);
+  if (!produto) return [];
+  const getMaterial = (id: ID) => db.get('materiais', id);
+  const padrao = resolverCores(produto, undefined, getMaterial, db.all('materiais'), db.all('producoes'));
+  return coresDasPosicoes(posicoesDaFicha(produto.mesas, getMaterial), padrao, db.all('materiais'));
+}
+
 interface ProducaoValidada {
   produto: Produto;
   qtdBoa: number;
   qtdPerdida: number;
   gramasReais?: MesaFilamento[];
+  /** Cor usada em cada posição de filamento. */
+  cores: Record<string, ID>;
   /** Consumo por material (positivo): filamentos e depois componentes. */
   consumo: { materialId: ID; quantidade: number }[];
 }
@@ -76,6 +160,8 @@ function validar(
   dados: DadosProducao,
   getProduto: (id: ID) => Produto | undefined,
   getMaterial: (id: ID) => Material | undefined,
+  todosMateriais: Material[],
+  producoes: Producao[],
 ): ProducaoValidada {
   const produto = getProduto(dados.produtoId);
   if (!produto) throw new ErroNegocio('Produto não encontrado.');
@@ -90,12 +176,17 @@ function validar(
   let gramasReais: MesaFilamento[] | undefined;
   if (dados.gramasReais && dados.gramasReais.length > 0) {
     gramasReais = dados.gramasReais.map((g) => {
-      if (!getMaterial(g.materialId)) throw new ErroNegocio('Filamento das gramas reais não encontrado.');
+      if (!g.materialId || !getMaterial(g.materialId)) throw new ErroNegocio('Filamento das gramas reais não encontrado.');
       if (!Number.isFinite(g.gramas) || g.gramas < 0) throw new ErroNegocio('As gramas reais precisam ser 0 ou mais.');
       return { materialId: g.materialId, gramas: roundTo(g.gramas, 2) };
     });
   }
-  const c = consumoFicha(produto, qtdBoa, qtdPerdida, gramasReais);
+  const cores = resolverCores(produto, dados.cores, getMaterial, todosMateriais, producoes);
+  const c = consumoFicha(produto, qtdBoa, qtdPerdida, gramasReais, cores);
+  if (c.semCor.length) {
+    const tipos = Array.from(new Set(posicoesDaFicha(produto.mesas, getMaterial).filter((p) => c.semCor.includes(p.chave)).map((p) => p.tipo)));
+    throw new ErroNegocio(`Cadastre um filamento ${tipos.join(' e ')} (em Estoque > Materiais) para registrar a produção.`);
+  }
   const consumo = [
     ...c.filamentos.map((f) => ({ materialId: f.materialId, quantidade: f.gramas })),
     ...c.componentes.map((k) => ({ materialId: k.materialId, quantidade: k.quantidade })),
@@ -103,7 +194,7 @@ function validar(
   for (const k of consumo) {
     if (!getMaterial(k.materialId)) throw new ErroNegocio(`Um material da ficha de "${produto.nome}" não foi encontrado. Revise a ficha técnica.`);
   }
-  return { produto, qtdBoa, qtdPerdida, gramasReais, consumo };
+  return { produto, qtdBoa, qtdPerdida, gramasReais, cores, consumo };
 }
 
 /** Resumo de "Registrar produção" para a confirmação: consumo por material, saldos antes/depois e peças que entram em Casa. Não grava. */
@@ -112,6 +203,8 @@ export function previaProducao(dados: DadosProducao): PreviaProducao {
     dados,
     (id) => db.get('produtos', id),
     (id) => db.get('materiais', id),
+    db.all('materiais'),
+    db.all('producoes'),
   );
   const custoUnit = custoProduto(v.produto.id);
   const consumo: ConsumoPrevia[] = v.consumo.map((k) => {
@@ -157,6 +250,8 @@ export function registrarProducao(dados: DadosProducao): Producao {
       dados,
       (id) => t.get('produtos', id),
       (id) => t.get('materiais', id),
+      t.all('materiais'),
+      t.all('producoes'),
     );
     const data = dataOuHoje(dados.data);
     const producao = t.insert('producoes', {
@@ -165,6 +260,7 @@ export function registrarProducao(dados: DadosProducao): Producao {
       qtdBoa: v.qtdBoa,
       qtdPerdida: v.qtdPerdida,
       gramasReais: v.gramasReais,
+      cores: v.cores,
       custoUnit: round4(custoUnit),
     });
     if (v.qtdBoa > 0) {

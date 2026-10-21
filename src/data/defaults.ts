@@ -138,7 +138,8 @@ export const ROTULO_TIPO_PARCEIRO: Record<string, string> = {
 
 export const ROTULO_ETAPA: Record<string, string> = {
   orcamento: 'Orçamento',
-  aprovado: 'Aprovado',
+  // Obsoleta: "Aprovado" e "Em produção" viraram uma etapa só.
+  aprovado: 'Em produção',
   producao: 'Em produção',
   pronto: 'Pronto',
   entregue: 'Entregue',

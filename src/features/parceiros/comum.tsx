@@ -3,21 +3,8 @@ import type { ComponentChildren } from 'preact';
 import { ROTULO_TIPO_PARCEIRO } from '../../data/defaults.ts';
 import type { Parceiro } from '../../data/types.ts';
 import { linkWhatsApp } from '../../domain/whatsapp.ts';
-import { Abas, Botao, Icon, Selo } from '../../ui/index.ts';
+import { Botao, Icon, Selo } from '../../ui/index.ts';
 import './parceiros.css';
-
-export function ParceirosAbas({ ativa }: { ativa: 'agenda' | 'lista' | 'expositores' }) {
-  return (
-    <Abas
-      ativa={ativa}
-      abas={[
-        { id: 'agenda', rotulo: 'Agenda de acertos', href: '/parceiros/agenda' },
-        { id: 'lista', rotulo: 'Parceiros', href: '/parceiros/lista' },
-        { id: 'expositores', rotulo: 'Expositores', href: '/parceiros/expositores' },
-      ]}
-    />
-  );
-}
 
 export const ROTULO_SITUACAO: Record<Parceiro['situacao'], string> = { ativo: 'Ativo', pausado: 'Pausado', encerrado: 'Encerrado' };
 
@@ -63,7 +50,7 @@ export function ParceiroNaoEncontrado() {
     <div class="pagina">
       <div class="vazio">
         <strong>Parceiro não encontrado</strong>
-        <Botao href="/parceiros/lista" variante="primario">
+        <Botao href="/parceiros" variante="primario">
           Ver parceiros
         </Botao>
       </div>

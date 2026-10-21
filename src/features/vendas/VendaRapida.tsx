@@ -1,16 +1,20 @@
-// "Venda rápida" (seção 10): grade de produtos com foto e busca; tocar adiciona 1.
-// Sai do estoque de Casa e grava receita, taxa, custo do momento e lucro.
-import { useState } from 'preact/hooks';
+// "Venda rápida" (seção 10), enxuta (decisão 86): em 3 toques — produtos, forma de pagamento e Registrar.
+// Grade de produtos com foto e busca; tocar adiciona 1. Sai do estoque de Casa e grava receita, taxa, custo do
+// momento e lucro. Sem janela de confirmação: o aviso traz "Desfazer" (cancela a venda e devolve o carrinho à tela).
+// Canal, cliente, data, desconto e preço de cada item ficam em "Mais detalhes".
+import { useEffect, useRef, useState } from 'preact/hooks';
 import type { TelaProps } from '../../app/router.ts';
 import { db } from '../../data/db.ts';
-import { ROTULO_CANAL_VENDA } from '../../data/defaults.ts';
+import { ROTULO_CANAL_VENDA, ROTULO_FORMA } from '../../data/defaults.ts';
 import { useDb } from '../../data/hooks.ts';
-import { nomeProduto, produtosAtivos, saldoCasa } from '../../data/selectors.ts';
+import { lerLocal, salvarLocal } from '../../data/local.ts';
+import { nomeCliente, nomeProduto, produtosAtivos, saldoCasa } from '../../data/selectors.ts';
 import type { CanalVenda, Cents, FormaPagamento } from '../../data/types.ts';
 import { hojeISO } from '../../lib/dates.ts';
-import { combinaBusca, formatBRL, formatData, formatQtd, formatReais } from '../../lib/format.ts';
-import { calcularVenda, registrarVenda, type CalculoVenda } from '../../services/vendas.ts';
-import { Aviso, Botao, Busca, Campo, Cartao, Data, Dinheiro, Escolha, Numero, Pagina, Resumo, Segmentado, Vazio, avisar, confirmar } from '../../ui/index.ts';
+import { combinaBusca, formatBRL, formatData, formatPct, formatQtd, formatReais } from '../../lib/format.ts';
+import { CANAIS_VENDA, FORMAS_PAGAMENTO, calcularVenda, desfazerVenda, registrarVenda, type CalculoVenda } from '../../services/vendas.ts';
+import { Aviso, Botao, Busca, Campo, Cartao, Data, Dinheiro, Escolha, Icon, MaisDetalhes, Numero, Pagina, Resumo, Segmentado, Vazio, avisar } from '../../ui/index.ts';
+import { executar } from '../estoque/comum.tsx';
 import { FotoProduto } from '../estoque/ProdutosLista.tsx';
 import './vendas.css';
 
@@ -20,17 +24,47 @@ interface Linha {
   precoUnitCentavos: Cents;
 }
 
+/** Última forma e último canal usados neste aparelho (só preferência, não vai para o backup). */
+const CHAVE_FORMA = 'venda:forma';
+const CHAVE_CANAL = 'venda:canal';
+
+function formaSalva(): FormaPagamento {
+  const f = lerLocal<string>(CHAVE_FORMA);
+  return FORMAS_PAGAMENTO.find((x) => x === f) ?? 'pix';
+}
+
+function canalSalvo(): CanalVenda {
+  const c = lerLocal<string>(CHAVE_CANAL);
+  return CANAIS_VENDA.find((x) => x === c) ?? 'presencial';
+}
+
 export function VendaRapida(_props: TelaProps) {
   useDb();
   const [busca, setBusca] = useState('');
   const [carrinho, setCarrinho] = useState<Linha[]>([]);
   const [descTipo, setDescTipo] = useState<'reais' | 'pct'>('reais');
   const [descValor, setDescValor] = useState<number | null>(null);
-  const [forma, setForma] = useState<FormaPagamento>('pix');
-  const [canal, setCanal] = useState<CanalVenda>('presencial');
+  const [forma, setForma] = useState<FormaPagamento>(formaSalva);
+  const [canal, setCanal] = useState<CanalVenda>(canalSalvo);
   const [clienteId, setClienteId] = useState<string>('');
   const [data, setData] = useState(hojeISO());
+  // Trava contra toque duplo em "Registrar": solta quando a tela é redesenhada com o carrinho novo.
+  const registrando = useRef(false);
+  useEffect(() => {
+    registrando.current = false;
+  }, [carrinho]);
+  // Para o "Desfazer": só devolve a venda à tela se ela ainda estiver aberta e sem outra venda em andamento.
+  const carrinhoAtual = useRef(carrinho);
+  carrinhoAtual.current = carrinho;
+  const montada = useRef(true);
+  useEffect(
+    () => () => {
+      montada.current = false;
+    },
+    [],
+  );
 
+  const hoje = hojeISO();
   const produtos = produtosAtivos().filter((p) => combinaBusca(busca, p.nome, p.codigo, p.modelo, p.categoria));
   const clientes = db
     .all('clientes')
@@ -46,6 +80,8 @@ export function VendaRapida(_props: TelaProps) {
       return [...c, { produtoId, quantidade: 1, precoUnitCentavos: p.precoEtiquetaCentavos }];
     });
   };
+  const tirarUm = (produtoId: string) =>
+    setCarrinho((c) => c.flatMap((l) => (l.produtoId !== produtoId ? [l] : l.quantidade > 1 ? [{ ...l, quantidade: l.quantidade - 1 }] : [])));
   const mudar = (produtoId: string, patch: Partial<Linha>) => setCarrinho((c) => c.map((l) => (l.produtoId === produtoId ? { ...l, ...patch } : l)));
   const remover = (produtoId: string) => setCarrinho((c) => c.filter((l) => l.produtoId !== produtoId));
 
@@ -62,34 +98,56 @@ export function VendaRapida(_props: TelaProps) {
   const qtdNoCarrinho = (id: string) => carrinho.find((l) => l.produtoId === id)?.quantidade ?? 0;
   const pecas = carrinho.reduce((s, l) => s + l.quantidade, 0);
 
-  const registrar = async () => {
-    if (!calc) return;
-    const ok = await confirmar({
-      titulo: `Registrar venda de ${formatBRL(calc.totalCentavos)}?`,
-      itens: [
-        ...calc.itens.filter((i) => i.quantidade > 0).map((i) => `${i.quantidade} × ${nomeProduto(i.produtoId)} a ${formatBRL(i.precoUnitCentavos)} — sai de Casa`),
-        calc.descontoCentavos ? `Desconto: ${formatBRL(calc.descontoCentavos)}` : '',
-        `${forma === 'pix' ? 'PIX' : forma === 'dinheiro' ? 'Dinheiro' : 'Cartão'}${calc.taxaCentavos ? ` (taxa ${formatBRL(calc.taxaCentavos)})` : ''} · ${ROTULO_CANAL_VENDA[canal]} · ${formatData(data)}`,
-        `Lucro estimado: ${formatBRL(calc.lucroCentavos)}`,
-        ...calc.faltas.map((f) => `Atenção: ${nomeProduto(f.produtoId)} fica negativo em Casa (faltam ${f.falta}).`),
-      ].filter(Boolean),
-      confirmar: 'Registrar venda',
-    });
-    if (!ok) return;
+  const registrar = () => {
+    if (!calc || pecas === 0 || registrando.current) return;
+    registrando.current = true;
+    // O que estava na tela, para o "Desfazer" devolver e o dono corrigir e registrar de novo.
+    const antes = { carrinho, descTipo, descValor, forma, canal, clienteId, data };
     try {
       const v = registrarVenda({ itens: carrinho, desconto, forma, canal, clienteId: clienteId || null, data });
-      avisar(`Venda de ${formatBRL(v.totalCentavos)} registrada`);
+      salvarLocal(CHAVE_FORMA, forma);
+      salvarLocal(CHAVE_CANAL, canal);
+      avisar(`Venda de ${formatBRL(v.totalCentavos)} registrada · ${ROTULO_FORMA[forma]}`, 'ok', {
+        rotulo: 'Desfazer',
+        onClick: () => {
+          if (!executar(() => desfazerVenda(v.id))) return;
+          // Já começou outra venda (ou saiu da tela): não troca o carrinho que está sendo montado.
+          if (!montada.current || carrinhoAtual.current.length > 0) {
+            avisar(montada.current ? 'Venda desfeita. O carrinho atual foi mantido.' : 'Venda desfeita');
+            return;
+          }
+          avisar('Venda desfeita');
+          setCarrinho(antes.carrinho);
+          setDescTipo(antes.descTipo);
+          setDescValor(antes.descValor);
+          setForma(antes.forma);
+          setCanal(antes.canal);
+          setClienteId(antes.clienteId);
+          setData(antes.data);
+        },
+      });
+      // Próxima venda: forma e canal continuam; o resto volta ao padrão.
       setCarrinho([]);
       setDescValor(null);
+      setClienteId('');
+      setData(hojeISO());
     } catch (e) {
+      registrando.current = false;
       avisar(e instanceof Error ? e.message : String(e), 'ruim');
     }
   };
 
+  const textoDesconto = !descValor
+    ? ''
+    : `desconto ${calc ? formatBRL(calc.descontoCentavos) : descTipo === 'pct' ? `${formatQtd(descValor)}%` : formatBRL(descValor)}`;
+  const resumoDetalhes = [ROTULO_CANAL_VENDA[canal], nomeCliente(clienteId || null), !data || data === hoje ? 'hoje' : formatData(data), textoDesconto]
+    .filter(Boolean)
+    .join(' · ');
+
   return (
     <Pagina
       titulo="Venda rápida"
-      voltarPara="/mais"
+      voltarPara={true}
       largura="larga"
       acoes={
         <Botao variante="secundario" icone="dinheiro" href="/vendas">
@@ -108,13 +166,29 @@ export function VendaRapida(_props: TelaProps) {
                 const q = qtdNoCarrinho(p.id);
                 const casa = saldoCasa(p.id);
                 return (
-                  <button key={p.id} type="button" class={`venda-produto ${q ? 'no-carrinho' : ''}`} onClick={() => adicionar(p.id)}>
-                    {q > 0 && <span class="venda-qtd">{q}</span>}
-                    <FotoProduto p={p} tamanho={56} />
-                    <span class="venda-nome">{p.nome}</span>
-                    <span class="venda-preco">{formatBRL(p.precoEtiquetaCentavos)}</span>
-                    <span class={`venda-saldo ${casa <= 0 ? 'txt-ruim' : ''}`}>Casa: {formatQtd(casa)}</span>
-                  </button>
+                  <div key={p.id} class={`venda-produto ${q ? 'no-carrinho' : ''}`}>
+                    <button
+                      type="button"
+                      class="venda-produto-add"
+                      onClick={() => adicionar(p.id)}
+                      aria-label={`Adicionar 1 ${p.nome}, ${formatBRL(p.precoEtiquetaCentavos)}, Casa: ${formatQtd(casa)}${q ? `, ${q} na venda` : ''}`}
+                    >
+                      <FotoProduto p={p} tamanho={56} />
+                      <span class="venda-nome">{p.nome}</span>
+                      <span class="venda-preco">{formatBRL(p.precoEtiquetaCentavos)}</span>
+                      <span class={`venda-saldo ${casa <= 0 ? 'txt-ruim' : ''}`}>Casa: {formatQtd(casa)}</span>
+                    </button>
+                    {q > 0 && (
+                      <>
+                        <span class="venda-qtd" aria-hidden="true">
+                          {q}
+                        </span>
+                        <button type="button" class="venda-produto-menos" onClick={() => tirarUm(p.id)} aria-label={`Tirar 1 ${p.nome}`} title="Tirar 1">
+                          <Icon nome="minus" tamanho={18} />
+                        </button>
+                      </>
+                    )}
+                  </div>
                 );
               })}
             </div>
@@ -129,74 +203,74 @@ export function VendaRapida(_props: TelaProps) {
               <div class="pilha pilha-m">
                 {carrinho.map((l) => (
                   <div key={l.produtoId} class="venda-linha">
-                    <div class="venda-linha-topo">
-                      <strong>{nomeProduto(l.produtoId)}</strong>
-                      <Botao pequeno variante="fantasma" icone="fechar" title="Remover" onClick={() => remover(l.produtoId)} />
-                    </div>
-                    <div class="venda-linha-campos">
-                      <Numero value={l.quantidade} onChange={(v) => (v === 0 ? remover(l.produtoId) : mudar(l.produtoId, { quantidade: Math.max(0, v ?? 1) }))} decimais={0} min={0} stepper ariaLabel="Quantidade" />
-                      <Dinheiro value={l.precoUnitCentavos} onChange={(v) => mudar(l.produtoId, { precoUnitCentavos: v ?? 0 })} />
-                    </div>
-                    <small class="muted">
-                      {l.quantidade} × {formatBRL(l.precoUnitCentavos)} = {formatBRL(l.quantidade * l.precoUnitCentavos)}
-                    </small>
+                    <strong class="venda-linha-nome">{nomeProduto(l.produtoId)}</strong>
+                    <strong class="venda-linha-total">{formatBRL(l.quantidade * l.precoUnitCentavos)}</strong>
+                    <Numero
+                      value={l.quantidade}
+                      onChange={(v) => (v === 0 ? remover(l.produtoId) : mudar(l.produtoId, { quantidade: Math.max(0, v ?? 1) }))}
+                      decimais={0}
+                      min={0}
+                      stepper
+                      ariaLabel={`Quantidade de ${nomeProduto(l.produtoId)}`}
+                    />
+                    <small class="muted venda-linha-unit">{formatBRL(l.precoUnitCentavos)} cada</small>
                   </div>
                 ))}
               </div>
             )}
           </Cartao>
 
-          <Cartao titulo="Pagamento">
-            <div class="formulario">
-              <Campo rotulo="Forma de pagamento">
+          {calc && calc.faltas.length > 0 && (
+            <Aviso tom="atencao">
+              {calc.faltas.map((f) => `${nomeProduto(f.produtoId)}: faltam ${f.falta} em Casa`).join(' · ')}. O saldo fica negativo até o próximo ajuste.
+            </Aviso>
+          )}
+          {erro && <Aviso tom="ruim">{erro}</Aviso>}
+
+          <MaisDetalhes resumo={resumoDetalhes}>
+            <Campo rotulo="Canal">
+              <Segmentado value={canal} onChange={setCanal} opcoes={CANAIS_VENDA.map((c) => ({ valor: c, rotulo: ROTULO_CANAL_VENDA[c] }))} />
+            </Campo>
+            <div class="campos-2">
+              <Campo rotulo="Cliente">
+                <Escolha value={clienteId} onChange={setClienteId} opcoes={[{ valor: '', rotulo: 'Cliente avulso' }, ...clientes.map((c) => ({ valor: c.id, rotulo: c.nome }))]} />
+              </Campo>
+              <Campo rotulo="Data">
+                <Data value={data} onInput={setData} max={hoje} />
+              </Campo>
+            </div>
+            <Campo rotulo="Desconto">
+              <div class="venda-desconto">
                 <Segmentado
-                  bloco
-                  value={forma}
-                  onChange={setForma}
+                  value={descTipo}
+                  onChange={(t) => {
+                    setDescTipo(t);
+                    setDescValor(null);
+                  }}
                   opcoes={[
-                    { valor: 'pix', rotulo: 'PIX' },
-                    { valor: 'dinheiro', rotulo: 'Dinheiro' },
-                    { valor: 'cartao', rotulo: 'Cartão' },
+                    { valor: 'reais', rotulo: 'R$' },
+                    { valor: 'pct', rotulo: '%' },
                   ]}
                 />
-              </Campo>
-              <Campo rotulo="Desconto">
-                <div class="venda-desconto">
-                  <Segmentado
-                    value={descTipo}
-                    onChange={(t) => {
-                      setDescTipo(t);
-                      setDescValor(null);
-                    }}
-                    opcoes={[
-                      { valor: 'reais', rotulo: 'R$' },
-                      { valor: 'pct', rotulo: '%' },
-                    ]}
-                  />
-                  {descTipo === 'reais' ? <Dinheiro value={descValor} onChange={setDescValor} /> : <Numero value={descValor} onChange={setDescValor} min={0} max={100} sufixo="%" />}
-                </div>
-              </Campo>
-              <Campo rotulo="Canal">
-                <Segmentado
-                  value={canal}
-                  onChange={setCanal}
-                  opcoes={(['presencial', 'whatsapp', 'instagram', 'feira'] as CanalVenda[]).map((c) => ({ valor: c, rotulo: ROTULO_CANAL_VENDA[c] }))}
-                />
-              </Campo>
-              <div class="campos-2">
-                <Campo rotulo="Cliente (opcional)">
-                  <Escolha value={clienteId} onChange={setClienteId} opcoes={[{ valor: '', rotulo: 'Cliente avulso' }, ...clientes.map((c) => ({ valor: c.id, rotulo: c.nome }))]} />
-                </Campo>
-                <Campo rotulo="Data">
-                  <Data value={data} onInput={setData} max={hojeISO()} />
-                </Campo>
+                {descTipo === 'reais' ? <Dinheiro value={descValor} onChange={setDescValor} /> : <Numero value={descValor} onChange={setDescValor} min={0} max={100} sufixo="%" />}
               </div>
-            </div>
-          </Cartao>
-
-          {erro && <Aviso tom="ruim">{erro}</Aviso>}
-          {calc && (
-            <Cartao>
+            </Campo>
+            {carrinho.length > 0 && (
+              <>
+                <strong>Preço de cada item</strong>
+                <div class="campos-2">
+                  {carrinho.map((l) => {
+                    const etiqueta = db.get('produtos', l.produtoId)?.precoEtiquetaCentavos;
+                    return (
+                      <Campo key={l.produtoId} rotulo={nomeProduto(l.produtoId)} dica={etiqueta != null && etiqueta !== l.precoUnitCentavos ? `Etiqueta: ${formatBRL(etiqueta)}` : undefined}>
+                        <Dinheiro value={l.precoUnitCentavos} onChange={(v) => mudar(l.produtoId, { precoUnitCentavos: v ?? 0 })} />
+                      </Campo>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+            {calc && (
               <Resumo
                 linhas={[
                   { rotulo: 'Subtotal', valor: formatBRL(calc.subtotalCentavos) },
@@ -207,26 +281,25 @@ export function VendaRapida(_props: TelaProps) {
                   { rotulo: 'Lucro estimado', valor: formatBRL(calc.lucroCentavos), tom: calc.lucroCentavos < 0 ? 'ruim' : 'ok' },
                 ]}
               />
-              {calc.faltas.length > 0 && (
-                <div style={{ marginTop: '10px' }}>
-                  <Aviso tom="atencao">
-                    {calc.faltas.map((f) => (
-                      <div key={f.produtoId}>
-                        {nomeProduto(f.produtoId)}: faltam {f.falta} em Casa. A venda é registrada e o saldo fica negativo até o próximo ajuste.
-                      </div>
-                    ))}
-                  </Aviso>
-                </div>
-              )}
-            </Cartao>
-          )}
+            )}
+          </MaisDetalhes>
         </div>
       </div>
 
       <div class="barra-acoes-fixa">
-        <Botao variante="primario" icone="check" disabled={!calc || calc.totalCentavos <= 0 && pecas === 0} onClick={registrar}>
-          {calc ? `Registrar venda · ${formatBRL(calc.totalCentavos)}` : 'Registrar venda'}
-        </Botao>
+        <div class="venda-barra">
+          <div class="venda-barra-forma" role="group" aria-label="Forma de pagamento">
+            <Segmentado bloco value={forma} onChange={setForma} opcoes={FORMAS_PAGAMENTO.map((f) => ({ valor: f, rotulo: ROTULO_FORMA[f] }))} />
+            {forma === 'cartao' && (
+              <small class="muted venda-barra-taxa">
+                taxa do cartão {calc ? formatBRL(calc.taxaCentavos) : formatPct(db.config.custos.taxaCartaoPct)}
+              </small>
+            )}
+          </div>
+          <Botao variante="primario" icone="check" disabled={!calc || pecas === 0} onClick={registrar}>
+            {calc ? `Registrar · ${formatBRL(calc.totalCentavos)}` : 'Registrar'}
+          </Botao>
+        </div>
       </div>
     </Pagina>
   );

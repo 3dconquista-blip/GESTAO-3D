@@ -11,10 +11,10 @@ import { formatBRL, formatData } from '../lib/format.ts';
 import { novoId } from '../lib/id.ts';
 import { roundTo } from '../lib/money.ts';
 import { erroMix, mesclarNoMix, precoNoMix } from '../domain/mix.ts';
-import { calcularSaldos, saldoNoLocal } from '../domain/stock.ts';
+import { calcularSaldos, idsEstornados, saldoNoLocal } from '../domain/stock.ts';
 import { montarTermo, rotuloDivisao, type ItemTermo, type Termo } from '../domain/termo.ts';
 import { normalizarWhatsApp } from '../domain/whatsapp.ts';
-import { ErroNegocio, lancarMov } from './estoque.ts';
+import { ErroNegocio, estornarMov, lancarMov } from './estoque.ts';
 import { moverExpositorTx } from './expositores.ts';
 
 /** Leitura comum a `db` (fora de transação) e `t` (dentro de db.tx). */
@@ -548,6 +548,39 @@ export function reposicaoAvulsa(dados: DadosReposicao): ResumoMovimento {
   });
 }
 
+export interface DesfazerRemessa {
+  parceiroId: ID;
+  /** Lote da remessa (ResumoMovimento.lote). */
+  lote: ID;
+  /** Mix e data de instalação de antes de levar as peças. */
+  mixAnterior: ItemMix[];
+  instaladoEmAnterior?: ISODate;
+  /** Expositores que saíram de Casa nesta instalação (voltam para Casa). */
+  expositorIds?: ID[];
+}
+
+/**
+ * "Desfazer" logo depois de levar ou recolher peças (decisão 93): estorna os movimentos do lote (as peças voltam
+ * para onde estavam), devolve o mix de antes e, numa instalação, leva os expositores de volta para Casa e desfaz a
+ * data de instalação.
+ */
+export function desfazerRemessa(d: DesfazerRemessa): void {
+  db.tx((t) => {
+    const p = obterParceiro(t, d.parceiroId);
+    const todos = t.all('movEstoque');
+    const estornados = idsEstornados(todos);
+    // Remessa (levar peças) ou recolhimento: os dois gravam o lote em refId.
+    const movs = todos.filter((m) => m.refId === d.lote && (m.tipo === 'remessa' || m.tipo === 'recolhimento'));
+    if (!movs.length) throw new ErroNegocio('Movimento não encontrado.');
+    if (movs.some((m) => estornados.has(m.id))) throw new ErroNegocio('Este movimento já foi desfeito.');
+    for (const m of movs) estornarMov(t, m.id, 'Desfeito logo após registrar', { data: m.data });
+    for (const id of d.expositorIds ?? []) {
+      if (t.get('expositores', id)?.parceiroId === p.id) moverExpositorTx(t, id, null, movs[0].data);
+    }
+    t.update('parceiros', p.id, { mix: d.mixAnterior, instaladoEm: d.instaladoEmAnterior });
+  });
+}
+
 export interface DadosRecolhimento {
   parceiroId: ID;
   itens: ItemQtd[];
@@ -653,19 +686,22 @@ export interface ResumoEncerramento {
  */
 export function encerrarParceria(parceiroId: ID, data?: ISODate): ResumoEncerramento {
   const dia = validarData(data ?? hojeISO());
-  return db.tx((t) => {
-    const p = obterParceiro(t, parceiroId);
-    if (p.situacao === 'encerrado') throw new ErroNegocio('Esta parceria já foi encerrada.');
-    const restantes = saldosNoParceiro(t, p.id);
-    if (restantes.length) {
-      const total = restantes.reduce((s, x) => s + x.quantidade, 0);
-      throw new ErroNegocio(`Ainda há ${pecas(total)} no parceiro. Faça o acerto final recolhendo tudo antes de encerrar.`);
-    }
-    const exps = t.all('expositores').filter((e) => e.parceiroId === p.id);
-    for (const e of exps) moverExpositorTx(t, e.id, null, dia);
-    t.update('parceiros', p.id, { situacao: 'encerrado' });
-    return { parceiroId: p.id, data: dia, expositoresDevolvidos: exps.map((e) => e.codigo) };
-  });
+  return db.tx((t) => encerrarParceriaTx(t, parceiroId, dia));
+}
+
+/** Encerrar dentro de outra transação (o acerto final encerra a parceria ao ser concluído). */
+export function encerrarParceriaTx(t: Tx, parceiroId: ID, dia: ISODate): ResumoEncerramento {
+  const p = obterParceiro(t, parceiroId);
+  if (p.situacao === 'encerrado') throw new ErroNegocio('Esta parceria já foi encerrada.');
+  const restantes = saldosNoParceiro(t, p.id);
+  if (restantes.length) {
+    const total = restantes.reduce((s, x) => s + x.quantidade, 0);
+    throw new ErroNegocio(`Ainda há ${pecas(total)} no parceiro. Faça o acerto final recolhendo tudo antes de encerrar.`);
+  }
+  const exps = t.all('expositores').filter((e) => e.parceiroId === p.id);
+  for (const e of exps) moverExpositorTx(t, e.id, null, dia);
+  t.update('parceiros', p.id, { situacao: 'encerrado' });
+  return { parceiroId: p.id, data: dia, expositoresDevolvidos: exps.map((e) => e.codigo) };
 }
 
 // ---------------------------------------------------------------- Termo (8.12)

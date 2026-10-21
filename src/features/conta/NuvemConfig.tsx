@@ -1,8 +1,10 @@
 // Bloco "Sincronizar na nuvem" para a tela de Configurações > Dados.
 import { useState } from 'preact/hooks';
-import { configNuvem, salvarConfigNuvem, sair, sincronizar, useNuvem } from '../../data/nuvem.ts';
+import { NOME_APP } from '../../data/defaults.ts';
+import { configNuvem, linkConfiguracao, salvarConfigNuvem, sair, sincronizar, useNuvem } from '../../data/nuvem.ts';
+import { linkWhatsApp } from '../../domain/whatsapp.ts';
 import { formatDataHora } from '../../lib/format.ts';
-import { Aviso, Botao, Campo, Cartao, Linha, Pilha, Selo, Texto, avisar, confirmar } from '../../ui/index.ts';
+import { Aviso, Botao, Campo, Cartao, Icon, Linha, Pilha, Selo, Texto, avisar, confirmar, copiarTexto } from '../../ui/index.ts';
 
 const ROTULO_STATUS = {
   desligada: { texto: 'Desligada', tom: 'neutro' },
@@ -40,6 +42,8 @@ export function NuvemConfig() {
   };
 
   const status = ROTULO_STATUS[nuvem.status];
+  // O link só faz sentido quando o app está publicado (no localhost ele não abre em outro aparelho).
+  const link = nuvem.configurada && !/localhost|127\.0\.0\.1/.test(location.hostname) ? linkConfiguracao(location.href) : null;
 
   return (
     <Cartao titulo="Sincronizar na nuvem" acoes={nuvem.configurada ? <Selo tom={status.tom}>{status.texto}</Selo> : undefined}>
@@ -47,13 +51,13 @@ export function NuvemConfig() {
         <Pilha>
           <p class="muted">
             Para ver os mesmos dados no celular e no computador, crie um projeto gratuito no Supabase, rode o SQL do arquivo
-            NUVEM.md e cole aqui a URL e a chave pública (anon key) do projeto.
+            NUVEM.md e cole aqui a URL e a chave pública do projeto (botão "Connect" no Supabase).
           </p>
           <Campo rotulo="URL do projeto">
             <Texto type="url" value={url} onInput={setUrl} placeholder="https://xxxx.supabase.co" inputMode="url" />
           </Campo>
-          <Campo rotulo="Chave pública (anon key)">
-            <Texto value={chave} onInput={setChave} placeholder="eyJhbGciOi..." />
+          <Campo rotulo="Chave pública (publishable)" dica="Começa com sb_publishable_ (a chave anon antiga também serve). Nunca use a secreta">
+            <Texto value={chave} onInput={setChave} placeholder="sb_publishable_..." />
           </Campo>
           {erro && <Aviso tom="ruim">{erro}</Aviso>}
           <Linha>
@@ -73,6 +77,24 @@ export function NuvemConfig() {
             </small>
           </p>
           {nuvem.erro && <Aviso tom="ruim">{nuvem.erro}</Aviso>}
+          {link && (
+            <div class="nuvem-link">
+              <strong>Usar em outro aparelho</strong>
+              <small class="muted">
+                Abra este link no celular ou no outro computador: o app já abre ligado a esta nuvem e só pede o seu e-mail e a
+                senha.
+              </small>
+              <Linha>
+                <Botao pequeno icone="copiar" onClick={() => copiarTexto(link).then((ok) => avisar(ok ? 'Link copiado' : 'Não deu para copiar', ok ? 'ok' : 'ruim'))}>
+                  Copiar link
+                </Botao>
+                <a class="btn btn-secundario btn-sm" href={linkWhatsApp('', `Link do ${NOME_APP}: ${link}`)} target="_blank" rel="noopener">
+                  <Icon nome="whatsapp" tamanho={18} />
+                  Mandar pelo WhatsApp
+                </a>
+              </Linha>
+            </div>
+          )}
           <Linha>
             <Botao variante="primario" icone="atualizar" onClick={() => sincronizar().then(() => avisar('Sincronizado')).catch((e) => avisar(e.message, 'ruim'))}>
               Sincronizar agora

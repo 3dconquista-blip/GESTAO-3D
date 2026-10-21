@@ -11,15 +11,29 @@ import { formatData } from '../lib/format.ts';
 import type { Config, EtapaPedido, ID, Pagamento, Pedido, PedidoItem, Produto, Venda } from '../data/types.ts';
 import type { ComposicaoCusto, ContextoCusto, FichaTecnica } from './pricing.ts';
 import { composicaoCusto } from './pricing.ts';
+import { reservasDePedidos } from './oQueImprimir.ts';
 import { idsEstornados } from './stock.ts';
 
 // ---------------------------------------------------------------- Etapas
 
-/** Fluxo normal do Kanban (sem 'cancelado'), na ordem. */
-export const ETAPAS_FLUXO: EtapaPedido[] = ['orcamento', 'aprovado', 'producao', 'pronto', 'entregue'];
+/**
+ * Fluxo normal do Kanban (sem 'cancelado'), na ordem. "Aprovado" e "Em produção" são uma etapa só ('producao');
+ * a etapa obsoleta 'aprovado' de pedidos antigos vale 'producao' (etapaNoFluxo).
+ */
+export const ETAPAS_FLUXO: EtapaPedido[] = ['orcamento', 'producao', 'pronto', 'entregue'];
 
 /** Todas as etapas, na ordem das colunas do Kanban. */
 export const ETAPAS: EtapaPedido[] = [...ETAPAS_FLUXO, 'cancelado'];
+
+/** Etapa como o fluxo atual entende: a obsoleta 'aprovado' vira 'producao'; as outras ficam iguais. */
+export function etapaNoFluxo(e: EtapaPedido): EtapaPedido {
+  return e === 'aprovado' ? 'producao' : e;
+}
+
+/** O pedido está "Em produção" (aprovado e ainda não pronto)? Aceita a etapa obsoleta 'aprovado'. */
+export function emProducao(e: EtapaPedido): boolean {
+  return e === 'aprovado' || e === 'producao';
+}
 
 /** Etapas em que o pedido não muda mais. */
 export function etapaFinal(etapa: EtapaPedido): boolean {
@@ -28,27 +42,41 @@ export function etapaFinal(etapa: EtapaPedido): boolean {
 
 /** Próxima etapa do botão "Avançar" (null em Entregue e Cancelado). */
 export function proximaEtapa(etapa: EtapaPedido): EtapaPedido | null {
-  const i = ETAPAS_FLUXO.indexOf(etapa);
+  const i = ETAPAS_FLUXO.indexOf(etapaNoFluxo(etapa));
   return i >= 0 && i < ETAPAS_FLUXO.length - 1 ? ETAPAS_FLUXO[i + 1] : null;
 }
 
 /** O pedido pode ir de `de` para `para`? Só para frente, ou cancelar de qualquer etapa não final. */
 export function podeMover(de: EtapaPedido, para: EtapaPedido): boolean {
-  if (etapaFinal(de) || de === para) return false;
-  if (para === 'cancelado') return true;
-  return ETAPAS_FLUXO.indexOf(para) > ETAPAS_FLUXO.indexOf(de);
+  const a = etapaNoFluxo(de);
+  const b = etapaNoFluxo(para);
+  if (etapaFinal(a) || a === b) return false;
+  if (b === 'cancelado') return true;
+  return ETAPAS_FLUXO.indexOf(b) > ETAPAS_FLUXO.indexOf(a);
 }
-
-/** Rótulos do checklist da etapa "Em produção". */
-export const ROTULO_CHECKLIST: Record<keyof Pedido['checklist'], string> = {
-  modeloAprovado: 'Modelo aprovado pelo cliente',
-  impresso: 'Impresso',
-  acabamento: 'Acabamento',
-};
 
 /** Número do pedido para exibir: 1 -> '#0001'. */
 export function numeroPedido(numero: number): string {
   return `#${String(numero).padStart(4, '0')}`;
+}
+
+/** Descrição gravada na peça personalizada sem descrição quando o título do pedido é automático. */
+export const DESCRICAO_PECA_SEM_NOME = 'Peça personalizada';
+
+/**
+ * Título automático pelos itens, para quando o dono não digita um: a descrição do primeiro item que tem uma
+ * (com a quantidade, se for mais de uma) e quantos itens há além dele. Ex.: "Chaveiro com nome",
+ * "20 × Chaveiro com nome", "Chaveiro com nome + 1 item", "+ 2 itens". Vazio se nenhum item tem descrição.
+ * A descrição genérica "Peça personalizada" só é usada se nenhum outro item tiver descrição.
+ */
+export function tituloAutomatico(itens: { descricao: string; quantidade: number }[]): string {
+  const comDescricao = itens.filter((i) => (i.descricao || '').trim());
+  const primeiro = comDescricao.find((i) => i.descricao.trim() !== DESCRICAO_PECA_SEM_NOME) ?? comDescricao[0];
+  if (!primeiro) return '';
+  const descricao = primeiro.descricao.trim();
+  const nome = primeiro.quantidade > 1 ? `${primeiro.quantidade} × ${descricao}` : descricao;
+  const outros = itens.length - 1;
+  return outros > 0 ? `${nome} + ${outros} ${outros === 1 ? 'item' : 'itens'}` : nome;
 }
 
 // ---------------------------------------------------------------- Custo dos itens
@@ -333,21 +361,22 @@ function dias(n: number): string {
 }
 
 /**
- * Alertas da seção 9.3: prazo em 2 dias ou menos (amarelo) e atrasado (vermelho) em Aprovado e
- * Em produção; "Aprovado sem sinal há 3 dias"; "Pronto e não retirado há mais de 5 dias";
+ * Alertas da seção 9.3: prazo em 2 dias ou menos (amarelo) e atrasado (vermelho) em Em produção;
+ * "Aprovado sem sinal há 3 dias"; "Pronto e não retirado há mais de 5 dias";
  * orçamento com validade vencida sem resposta.
  */
 export function alertasPedido(pedido: Pedido, pagamentos: Pagamento[], hoje: ISODate): AlertaPedido[] {
   const out: AlertaPedido[] = [];
   const e = pedido.etapa;
-  if ((e === 'aprovado' || e === 'producao') && pedido.prazo) {
+  if (emProducao(e) && pedido.prazo) {
     const faltam = diffDias(hoje, pedido.prazo);
     if (faltam < 0) out.push({ tipo: 'atrasado', tom: 'ruim', texto: `Atrasado há ${dias(-faltam)}` });
     else if (faltam === 0) out.push({ tipo: 'prazo', tom: 'atencao', texto: 'Prazo vence hoje' });
     else if (faltam <= 2) out.push({ tipo: 'prazo', tom: 'atencao', texto: `Prazo em ${dias(faltam)}` });
   }
-  if (e === 'aprovado' && pedido.aprovadoEm) {
-    const desde = diffDias(pedido.aprovadoEm, hoje);
+  const aprovadoEm = pedido.aprovadoEm ?? pedido.producaoEm;
+  if (emProducao(e) && aprovadoEm) {
+    const desde = diffDias(aprovadoEm, hoje);
     if (desde >= 3 && situacaoFinanceira(pedido, pagamentos).pagoCentavos <= 0) {
       out.push({ tipo: 'sem_sinal', tom: 'atencao', texto: `Aprovado sem sinal há ${dias(desde)}` });
     }
@@ -380,34 +409,23 @@ function porPrazo(a: Pedido, b: Pedido): number {
   return pa === pb ? a.numero - b.numero : pa < pb ? -1 : 1;
 }
 
-/** Pedidos agrupados por etapa (colunas do Kanban), cada grupo ordenado pelo prazo. */
+/**
+ * Pedidos agrupados por etapa (colunas do Kanban), cada grupo ordenado pelo prazo. Pedidos antigos na etapa
+ * obsoleta 'aprovado' entram na coluna 'producao' (o grupo 'aprovado' fica sempre vazio).
+ */
 export function pedidosPorEtapa(pedidos: Pedido[]): Record<EtapaPedido, Pedido[]> {
-  const out = Object.fromEntries(ETAPAS.map((e) => [e, [] as Pedido[]])) as Record<EtapaPedido, Pedido[]>;
-  for (const p of pedidos) out[p.etapa]?.push(p);
+  const out = Object.fromEntries([...ETAPAS, 'aprovado'].map((e) => [e, [] as Pedido[]])) as Record<EtapaPedido, Pedido[]>;
+  for (const p of pedidos) out[etapaNoFluxo(p.etapa)]?.push(p);
   for (const e of ETAPAS) out[e].sort(porPrazo);
   return out;
 }
 
-/** Pedidos em "Aprovado" ou "Em produção", ordenados pelo prazo (para "O que imprimir"). */
-export function pedidosParaImprimir(pedidos: Pedido[]): Pedido[] {
-  return pedidos.filter((p) => p.etapa === 'aprovado' || p.etapa === 'producao').sort(porPrazo);
-}
-
 /**
  * Reserva de itens de catálogo em Casa: "Fica reservado em Casa na aprovação e sai na entrega".
- * Soma as quantidades de pedidos em Aprovado, Em produção e Pronto ainda não baixados.
+ * Soma as quantidades de pedidos em Em produção e Pronto ainda não baixados (a regra é a de "O que imprimir").
  */
 export function reservasCatalogo(pedidos: Pedido[]): Map<ID, number> {
-  const out = new Map<ID, number>();
-  for (const p of pedidos) {
-    if (p.catalogoBaixado) continue;
-    if (p.etapa !== 'aprovado' && p.etapa !== 'producao' && p.etapa !== 'pronto') continue;
-    for (const item of p.itens) {
-      if (item.tipo !== 'catalogo' || !item.produtoId) continue;
-      out.set(item.produtoId, (out.get(item.produtoId) || 0) + item.quantidade);
-    }
-  }
-  return out;
+  return reservasDePedidos(pedidos);
 }
 
 export interface FaltaCatalogo {

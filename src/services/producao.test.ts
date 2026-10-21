@@ -7,7 +7,8 @@ import { CASA } from '../data/types.ts';
 import { pecasPorMesas } from '../domain/consumo.ts';
 import { lancarMov } from './estoque.ts';
 import { comprarMaterial, salvarMaterial } from './materiais.ts';
-import { estornarProducao, previaProducao, registrarProducao } from './producao.ts';
+import { coresDaProducao, estornarProducao, previaProducao, registrarProducao } from './producao.ts';
+import { salvarProduto } from './produtos.ts';
 
 interface Fixture {
   produtoId: string;
@@ -193,5 +194,56 @@ describe('estornar produção', () => {
   it('exige motivo', () => {
     const p = registrarProducao({ produtoId: f.produtoId, qtdBoa: 8 });
     assert.throws(() => estornarProducao(p.id, ' '), /motivo/);
+  });
+});
+
+describe('cor escolhida na produção (decisão 85)', () => {
+  // Produto sem cor: a ficha diz só "64 g de PLA". Há PLA Preto (1.000 g, da fixture) e PLA Rosa (500 g).
+  function semCor() {
+    const rosa = salvarMaterial({ tipo: 'filamento', material: 'PLA', corNome: 'Rosa', custoMedio: 100, saldoInicial: 500 }).id;
+    const imp = db.all('impressoras')[0].id;
+    const p = salvarProduto({ nome: 'Chaveiro Kettlebell', mesas: [{ pecasPorMesa: 8, tempoMin: 240, impressoraId: imp, filamentos: [{ tipo: 'PLA', gramas: 64 }] }] });
+    return { rosa, produtoId: p.id, chave: `${p.mesas[0].id}:0` };
+  }
+
+  it('sem escolher, vale o carretel do tipo com mais saldo; depois, a última cor usada', () => {
+    const s = semCor();
+    const [pos] = coresDaProducao(s.produtoId);
+    assert.equal(pos.padrao, f.pla);
+    assert.deepEqual(pos.opcoes.map((m) => m.nome), ['PLA Preto', 'PLA Rosa']);
+    registrarProducao({ produtoId: s.produtoId, qtdBoa: 8, cores: { [s.chave]: s.rosa } });
+    assert.equal(coresDaProducao(s.produtoId)[0].padrao, s.rosa);
+    // A última cor arquivada deixa de ser o padrão: volta o carretel ativo do tipo com mais saldo.
+    db.tx((t) => t.update('materiais', s.rosa, { arquivado: true }));
+    assert.equal(coresDaProducao(s.produtoId)[0].padrao, f.pla);
+    assert.deepEqual(coresDaProducao(s.produtoId)[0].opcoes.map((m) => m.nome), ['PLA Preto']);
+  });
+
+  it('o filamento sai do carretel da cor escolhida e as peças entram num estoque só', () => {
+    const s = semCor();
+    registrarProducao({ produtoId: s.produtoId, qtdBoa: 8, cores: { [s.chave]: s.rosa } });
+    registrarProducao({ produtoId: s.produtoId, qtdBoa: 8, cores: { [s.chave]: f.pla } });
+    assert.equal(saldoMaterial(s.rosa), 500 - 64);
+    assert.equal(saldoMaterial(f.pla), 1000 - 64);
+    assert.equal(saldoCasa(s.produtoId), 16);
+    const cores = db.all('producoes').filter((p) => p.produtoId === s.produtoId).map((p) => p.cores?.[s.chave]);
+    assert.deepEqual(cores, [s.rosa, f.pla]);
+  });
+
+  it('estornar devolve o filamento ao carretel da cor usada', () => {
+    const s = semCor();
+    const p = registrarProducao({ produtoId: s.produtoId, qtdBoa: 8, cores: { [s.chave]: s.rosa } });
+    estornarProducao(p.id, 'desfeito');
+    assert.equal(saldoMaterial(s.rosa), 500);
+    assert.equal(saldoCasa(s.produtoId), 0);
+  });
+
+  it('cor que não é filamento é recusada; tipo sem carretel pede para cadastrar', () => {
+    const s = semCor();
+    assert.throws(() => registrarProducao({ produtoId: s.produtoId, qtdBoa: 8, cores: { [s.chave]: f.argola } }), /não é um filamento/);
+    const imp = db.all('impressoras')[0].id;
+    const vaso = salvarProduto({ nome: 'Vaso', mesas: [{ pecasPorMesa: 1, tempoMin: 60, impressoraId: imp, filamentos: [{ tipo: 'PETG', gramas: 30 }] }] });
+    assert.throws(() => registrarProducao({ produtoId: vaso.id, qtdBoa: 1 }), /Cadastre um filamento PETG/);
+    assert.equal(saldoCasa(s.produtoId), 0);
   });
 });

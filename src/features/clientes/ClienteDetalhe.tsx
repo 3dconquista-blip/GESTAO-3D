@@ -1,5 +1,6 @@
-// Ficha do cliente (9.1): pedidos, compras, total gasto, última compra, ticket médio, crédito,
-// botão de WhatsApp e "Excluir dados do cliente" (LGPD).
+// Ficha do cliente (9.1), enxuta (decisão 86): total gasto, ticket médio, última compra, pedidos, crédito,
+// botão de WhatsApp, Editar e as tabelas de pedidos e compras. Os dados guardados, novidade e parabéns (só para
+// quem aceita receber novidades), arquivar e "Excluir dados do cliente" (LGPD) ficam em "Dados e mais ações".
 import { useState } from 'preact/hooks';
 import { navegar, type TelaProps } from '../../app/router.ts';
 import { db } from '../../data/db.ts';
@@ -11,10 +12,10 @@ import { numeroPedido } from '../../domain/pedidos.ts';
 import { formatarTelefone } from '../../domain/termo.ts';
 import { formatBRL, formatData } from '../../lib/format.ts';
 import { arquivarCliente, estatisticasCliente, excluirDadosCliente } from '../../services/clientes.ts';
-import { AreaTexto, Aviso, Botao, Campo, Cartao, Grade, Indicador, Linha, Modal, Pagina, Resumo, Selo, Tabela, Vazio, avisar, confirmar, type Coluna } from '../../ui/index.ts';
+import { AreaTexto, Aviso, Botao, Campo, Cartao, Grade, Indicador, Linha, MaisDetalhes, Modal, Pagina, Resumo, Selo, Tabela, Vazio, avisar, confirmar, type Coluna } from '../../ui/index.ts';
 import { BotaoWhatsApp } from '../parceiros/comum.tsx';
 import { resumoItens } from '../vendas/VendasLista.tsx';
-import { ROTULO_COMO_CONHECEU } from './ClienteForm.tsx';
+import { ROTULO_COMO_CONHECEU, formatarAniversario, resumoMaisDados } from './ClienteForm.tsx';
 
 export function ClienteDetalhe({ params }: TelaProps) {
   useDb();
@@ -93,18 +94,9 @@ export function ClienteDetalhe({ params }: TelaProps) {
       {!c.anonimizado && (
         <Linha>
           {c.whatsapp && <BotaoWhatsApp numero={c.whatsapp}>WhatsApp</BotaoWhatsApp>}
-          {podeReceberNovidades(c) ? (
-            <>
-              <Botao icone="estrela" onClick={() => setNovidade('promocao')}>
-                Enviar novidade
-              </Botao>
-              <Botao icone="estrela" onClick={() => setNovidade('aniversario')}>
-                Parabéns
-              </Botao>
-            </>
-          ) : (
-            <small class="muted">Promoções e aniversário só para quem aceita receber novidades.</small>
-          )}
+          <Botao pequeno icone="editar" href={`/clientes/${c.id}/editar`}>
+            Editar
+          </Botao>
         </Linha>
       )}
 
@@ -118,22 +110,33 @@ export function ClienteDetalhe({ params }: TelaProps) {
       </Grade>
 
       {!c.anonimizado && (
-        <Cartao titulo="Dados">
+        <MaisDetalhes titulo="Dados e mais ações" resumo={resumoMaisDados(c) || undefined}>
           <Resumo
             linhas={[
               { rotulo: 'WhatsApp', valor: formatarTelefone(c.whatsapp) || '—' },
               c.instagram ? { rotulo: 'Instagram', valor: c.instagram } : null,
+              c.cidade ? { rotulo: 'Cidade', valor: c.cidade } : null,
+              c.bairro ? { rotulo: 'Bairro', valor: c.bairro } : null,
               c.endereco ? { rotulo: 'Endereço', valor: c.endereco } : null,
-              c.aniversario ? { rotulo: 'Aniversário', valor: formatData(c.aniversario.length === 10 ? c.aniversario : `2000-${c.aniversario}`).slice(0, 5) } : null,
+              c.aniversario ? { rotulo: 'Aniversário', valor: formatarAniversario(c.aniversario) } : null,
               c.comoConheceu ? { rotulo: 'Como conheceu', valor: ROTULO_COMO_CONHECEU[c.comoConheceu] } : null,
               { rotulo: 'Aceita receber novidades', valor: c.aceitaNovidades ? 'Sim' : 'Não' },
               c.observacoes ? { rotulo: 'Observações', valor: c.observacoes } : null,
             ]}
           />
-          <Linha class="parc-dados-acoes">
-            <Botao pequeno icone="editar" href={`/clientes/${c.id}/editar`}>
-              Editar
-            </Botao>
+          {podeReceberNovidades(c) ? (
+            <Linha>
+              <Botao icone="estrela" onClick={() => setNovidade('promocao')}>
+                Enviar novidade
+              </Botao>
+              <Botao icone="estrela" onClick={() => setNovidade('aniversario')}>
+                Parabéns
+              </Botao>
+            </Linha>
+          ) : (
+            <small class="muted">Promoções e aniversário só para quem aceita receber novidades.</small>
+          )}
+          <Linha>
             <Botao pequeno variante="fantasma" icone={c.arquivado ? 'atualizar' : 'arquivar'} onClick={() => arquivarCliente(c.id, !c.arquivado)}>
               {c.arquivado ? 'Reativar' : 'Arquivar'}
             </Botao>
@@ -141,7 +144,7 @@ export function ClienteDetalhe({ params }: TelaProps) {
               Excluir dados do cliente
             </Botao>
           </Linha>
-        </Cartao>
+        </MaisDetalhes>
       )}
 
       {novidade && (

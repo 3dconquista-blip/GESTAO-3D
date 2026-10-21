@@ -97,9 +97,39 @@ export function salvarConfigNuvem(c: ConfigNuvem | null) {
   }
   const url = normalizarUrl(c.url);
   if (!/^https:\/\/.+/.test(url)) throw new Error('Informe a URL do projeto, começando com https://');
-  if (c.chave.trim().length < 20) throw new Error('Informe a chave pública (anon key) do projeto.');
+  if (c.chave.trim().length < 20) throw new Error('Informe a chave pública do projeto (publishable ou anon).');
+  if (/^sb_secret_/.test(c.chave.trim())) throw new Error('Essa é a chave secreta. Use a chave pública (publishable, começa com sb_publishable_).');
+  // Outro projeto: a sessão do projeto antigo não vale mais.
+  const anterior = configNuvem();
+  if (anterior && anterior.url !== url) apagarLocal(K_SESSAO);
   salvarLocal(K_CONFIG, { url, chave: c.chave.trim() });
-  definirEstadoNuvem({ configurada: true, logado: false, status: 'desligada', erro: null });
+  definirEstadoNuvem({ configurada: true, logado: !!sessao(), status: 'desligada', erro: null });
+}
+
+/**
+ * Link que abre o app em outro aparelho já com a nuvem configurada (só falta entrar com e-mail e senha).
+ * Leva apenas a URL e a chave pública do projeto, que são públicas por natureza (quem protege os dados é o login).
+ */
+export function linkConfiguracao(enderecoApp: string): string | null {
+  const c = configNuvem();
+  if (!c) return null;
+  const dados = btoa(JSON.stringify({ u: c.url, k: c.chave })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return `${enderecoApp.split('#')[0]}#/?nuvem=${dados}`;
+}
+
+/** Lê o link de configuração (`#/?nuvem=...`), se houver, e liga a nuvem. Devolve true se aplicou. */
+export function aplicarLinkConfiguracao(hash: string): boolean {
+  const m = /[?&]nuvem=([A-Za-z0-9_-]+)/.exec(hash);
+  if (!m) return false;
+  try {
+    const b64 = m[1].replace(/-/g, '+').replace(/_/g, '/');
+    const { u, k } = JSON.parse(atob(b64 + '='.repeat((4 - (b64.length % 4)) % 4))) as { u?: string; k?: string };
+    if (!u || !k) return false;
+    salvarConfigNuvem({ url: u, chave: k });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function sessao(): Sessao | null {
@@ -113,6 +143,8 @@ function mensagemErro(corpo: unknown, padrao: string): string {
   if (/email not confirmed/i.test(t)) return 'Confirme seu e-mail (veja a caixa de entrada) e tente de novo.';
   if (/already registered|already exists/i.test(t)) return 'Este e-mail já tem conta. Use "Entrar".';
   if (/password/i.test(t) && /6/.test(t)) return 'A senha precisa ter pelo menos 6 caracteres.';
+  if (/permission denied|42501/i.test(t)) return 'O projeto não liberou a tabela para o app. Rode de novo o SQL do arquivo NUVEM.md (ele tem o GRANT).';
+  if (/signups? not allowed|signup.*disabled/i.test(t)) return 'Este projeto não aceita contas novas. Use "Entrar" com a conta que já existe.';
   if (/relation .* does not exist|could not find the table/i.test(t)) return 'A tabela octa_registros não existe no projeto. Rode o SQL do arquivo NUVEM.md.';
   return t || padrao;
 }
@@ -267,15 +299,19 @@ interface Linha {
 
 let emAndamento: Promise<void> | null = null;
 
-/** Envia as alterações deste aparelho e busca as dos outros. */
+/**
+ * Busca as alterações dos outros aparelhos e depois envia as deste. Buscar antes é o que impede um aparelho
+ * novo (ainda com a configuração padrão) de sobrescrever na nuvem uma versão mais recente: na busca, a versão
+ * mais nova vence e a pendência local mais velha é descartada; só o que é mais novo aqui é enviado.
+ */
 export function sincronizar(): Promise<void> {
   if (!configNuvem() || !sessao()) return Promise.resolve();
   if (emAndamento) return emAndamento;
   emAndamento = (async () => {
     definirEstadoNuvem({ status: 'sincronizando', erro: null });
     try {
-      await enviar();
       await buscar();
+      await enviar();
       definirEstadoNuvem({ status: 'ok', ultimaSincronizacao: new Date().toISOString(), erro: null });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

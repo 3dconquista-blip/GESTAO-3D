@@ -1,4 +1,5 @@
-// "Encerrar parceria" (8.10): acerto final com recolhimento de tudo, expositor volta para Casa, situação "encerrado".
+// "Encerrar parceria" (8.10, decisão 94): com peças no expositor, o caminho é o acerto final, que recolhe tudo e já
+// encerra a parceria ao ser concluído. Sem peças, encerra aqui (expositores voltam para Casa, situação "encerrado").
 import { navegar, type TelaProps } from '../../app/router.ts';
 import { db } from '../../data/db.ts';
 import { useDb } from '../../data/hooks.ts';
@@ -28,12 +29,14 @@ export function EncerrarParceria({ params }: TelaProps) {
 
   return (
     <Pagina titulo={`Encerrar parceria — ${p.nome}`} voltarPara={`/parceiros/${p.id}`} largura="estreita">
-      <Cartao titulo="1. Acerto final">
+      <Cartao>
         {prev.pecasNoParceiro > 0 ? (
           <div class="pilha pilha-m">
             <p>
-              Ainda há <strong>{prev.pecasNoParceiro} peça(s)</strong> no expositor. Faça o acerto final: conte, acerte as vendas e recolha tudo para Casa.
+              Ainda há <strong>{prev.pecasNoParceiro} peça(s)</strong> no expositor. Faça o acerto final: conte, acerte as vendas e recolha tudo para Casa. Ao
+              concluir, a parceria é encerrada e os expositores voltam para Casa.
             </p>
+            {pend && pend.aReceber > 0 && <Aviso tom="atencao">Pendência de {formatBRL(pend.aReceber)} continua a receber depois do encerramento.</Aviso>}
             <div>
               <Botao variante="primario" icone="check" href={`/parceiros/${p.id}/acerto?final=1`}>
                 Fazer o acerto final
@@ -41,24 +44,21 @@ export function EncerrarParceria({ params }: TelaProps) {
             </div>
           </div>
         ) : (
-          <Aviso tom="ok">Nenhuma peça no expositor.</Aviso>
-        )}
-      </Cartao>
-      <Cartao titulo="2. Encerrar">
-        <div class="pilha pilha-m">
-          <ul class="confirmacao-itens">
-            {prev.itens.map((i) => (
-              <li key={i}>{i}</li>
-            ))}
-          </ul>
-          {pend && pend.aReceber > 0 && <Aviso tom="atencao">Pendência de {formatBRL(pend.aReceber)} continua a receber depois do encerramento.</Aviso>}
-          {prev.bloqueio && prev.pecasNoParceiro === 0 && <Aviso tom="ruim">{prev.bloqueio}</Aviso>}
-          <div>
-            <Botao variante="perigo" icone="sair" disabled={!!prev.bloqueio} onClick={encerrar}>
-              Encerrar parceria
-            </Botao>
+          <div class="pilha pilha-m">
+            <ul class="confirmacao-itens">
+              {prev.itens.map((i) => (
+                <li key={i}>{i}</li>
+              ))}
+            </ul>
+            {pend && pend.aReceber > 0 && <Aviso tom="atencao">Pendência de {formatBRL(pend.aReceber)} continua a receber depois do encerramento.</Aviso>}
+            {prev.bloqueio && <Aviso tom="ruim">{prev.bloqueio}</Aviso>}
+            <div>
+              <Botao variante="perigo" icone="sair" disabled={!!prev.bloqueio} onClick={encerrar}>
+                Encerrar parceria
+              </Botao>
+            </div>
           </div>
-        </div>
+        )}
       </Cartao>
     </Pagina>
   );

@@ -19,7 +19,7 @@ export function Comprovante({ params }: TelaProps) {
   if (!a) {
     return (
       <div class="pagina">
-        <Vazio titulo="Acerto não encontrado" acao={{ rotulo: 'Agenda de acertos', href: '/parceiros/agenda' }} />
+        <Vazio titulo="Acerto não encontrado" acao={{ rotulo: 'Ver parceiros', href: '/parceiros' }} />
       </div>
     );
   }

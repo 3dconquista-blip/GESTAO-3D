@@ -73,8 +73,13 @@ export interface RascunhoAcerto {
   pagamento: PagamentoRascunho;
   /** Acerto final (encerrar parceria): recolhe tudo, sem reposição. */
   final?: boolean;
-  /** Passo da tela (1 Contagem, 2 Ocorrências, 3 Resumo, 4 Reposição, 5 Pagamento). */
+  /**
+   * Passo da tela: 1 Contagem (com ocorrências), 2 Reposição, 3 Fechar (valores e pagamento). Rascunhos de antes
+   * (sem `passos3`) usavam 5 passos; passoDoRascunho converte.
+   */
   passo: number;
+  /** Rascunho já no formato de 3 passos (decisão 94). */
+  passos3?: boolean;
   atualizadoEm: ISODateTime;
 }
 
@@ -357,6 +362,13 @@ export function atualizarSugestoes(rascunho: RascunhoAcerto, saldoCasa: (produto
 }
 
 /** O preço da linha é diferente do preço do acerto anterior (aviso amarelo). */
+/** Passo (1 a 3) de um rascunho; os de 5 passos (Contagem, Ocorrências, Resumo, Reposição, Pagamento) são convertidos. */
+export function passoDoRascunho(r: Pick<RascunhoAcerto, 'passo' | 'passos3'>): 1 | 2 | 3 {
+  const antigo: Record<number, 1 | 2 | 3> = { 1: 1, 2: 1, 3: 3, 4: 2, 5: 3 };
+  const p = r.passos3 ? r.passo : (antigo[r.passo] ?? 1);
+  return p === 2 || p === 3 ? p : 1;
+}
+
 export function precoMudou(linha: Pick<LinhaRascunho, 'precoUnitCentavos' | 'precoAnteriorCentavos'>): boolean {
   return linha.precoAnteriorCentavos != null && linha.precoAnteriorCentavos !== linha.precoUnitCentavos;
 }

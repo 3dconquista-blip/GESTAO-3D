@@ -21,7 +21,7 @@ import {
 } from './produtos.ts';
 
 const produto = (nome: string) => db.all('produtos').find((p) => p.nome === nome)!;
-const KB = 'Chaveiro Kettlebell Preto';
+const KB = 'Chaveiro Kettlebell';
 
 /** Põe peças em Casa (produção) sem mexer em materiais. */
 function produzir(produtoId: string, quantidade: number) {
@@ -76,7 +76,7 @@ describe('margem de lucro do produto', () => {
     assert.equal(p60.sugestoes.find((s) => s.canal.id === 'direto_pix')?.centavos, 690); // 2,4873 ÷ 0,4 = 6,22 → 6,90
     salvarProduto({ ...kb, margemPct: 60 });
     assert.equal(produto(KB).margemPct, 60);
-    assert.equal(produto('Chaveiro Kettlebell Rosa').margemPct, undefined);
+    assert.equal(produto('Chaveiro Halter').margemPct, undefined);
   });
 
   it('a cor da margem usa a margem do produto', () => {
@@ -156,19 +156,20 @@ describe('excluir produto', () => {
 });
 
 describe('edição em massa', () => {
-  const dois = () => [produto(KB).id, produto('Chaveiro Kettlebell Rosa').id];
+  const dois = () => [produto(KB).id, produto('Chaveiro Halter').id];
 
   it('categoria, mínimo, margem e reajuste de preço em vários produtos de uma vez', () => {
     const r = editarProdutosEmMassa(dois(), { categoria: 'Display', estoqueMinimo: 7, margemPct: 60, preco: { modo: 'percentual', pct: 10 } });
     assert.equal(r.length, 2);
-    for (const nome of [KB, 'Chaveiro Kettlebell Rosa']) {
+    for (const nome of [KB, 'Chaveiro Halter']) {
       const p = produto(nome);
       assert.equal(p.categoria, 'Display');
       assert.equal(p.estoqueMinimo, 7);
       assert.equal(p.margemPct, 60);
-      assert.equal(p.precoEtiquetaCentavos, 1690); // 15,00 + 10% = 16,50 → 16,90
     }
-    assert.equal(produto('Chaveiro Anilha Vermelha').categoria, 'Chaveiro');
+    assert.equal(produto(KB).precoEtiquetaCentavos, 1690); // 15,00 + 10% = 16,50 → 16,90
+    assert.equal(produto('Chaveiro Halter').precoEtiquetaCentavos, 1390); // 12,00 + 10% = 13,20 → 13,90
+    assert.equal(produto('Chaveiro Anilha').categoria, 'Chaveiro');
   });
 
   it('preço sugerido usa a margem de cada produto; "mesmo valor" iguala tudo', () => {
@@ -178,12 +179,12 @@ describe('edição em massa', () => {
     assert.equal(produto(KB).margemPct, undefined);
     assert.equal(produto(KB).precoEtiquetaCentavos, 790);
     editarProdutosEmMassa(dois(), { preco: { modo: 'definir', centavos: 1200 } });
-    assert.equal(produto('Chaveiro Kettlebell Rosa').precoEtiquetaCentavos, 1200);
+    assert.equal(produto('Chaveiro Halter').precoEtiquetaCentavos, 1200);
   });
 
   it('arquivar e reativar em lote', () => {
     editarProdutosEmMassa(dois(), { arquivado: true });
-    assert.ok(produto(KB).arquivado && produto('Chaveiro Kettlebell Rosa').arquivado);
+    assert.ok(produto(KB).arquivado && produto('Chaveiro Halter').arquivado);
     editarProdutosEmMassa(dois(), { arquivado: false });
     assert.equal(produto(KB).arquivado, false);
   });

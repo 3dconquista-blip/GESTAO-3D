@@ -19,6 +19,7 @@ import {
   type ResumoCompra,
 } from '../domain/materiais.ts';
 import { ErroNegocio } from './estoque.ts';
+import { hexDaCor } from '../domain/filamento.ts';
 
 const TIPOS_FILAMENTO: TipoFilamento[] = ['PLA', 'PETG', 'TPU', 'ABS', 'ASA', 'Outro'];
 
@@ -169,7 +170,7 @@ export function salvarMaterial(dados: DadosMaterial): Material {
       nome,
       material,
       corNome,
-      corHex: dados.corHex !== undefined ? texto(dados.corHex) : atual?.corHex,
+      corHex: (dados.corHex !== undefined ? texto(dados.corHex) : atual?.corHex) || (filamento ? hexDaCor(corNome) : undefined),
       marca: dados.marca !== undefined ? texto(dados.marca) : atual?.marca,
       unidade,
       custoMedio: round4(custoMedio),

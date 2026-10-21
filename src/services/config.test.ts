@@ -41,7 +41,7 @@ const CUSTOS_A = {
   taxaCartaoPct: 4,
 };
 
-/** Chaveiro Kettlebell Preto do Exemplo A (custo 2,4873), com a etiqueta informada. */
+/** Chaveiro Kettlebell do Exemplo A (custo 2,4873), com a etiqueta informada. */
 function criarKettlebell(precoEtiquetaCentavos: number, categoria = 'Chaveiro') {
   const { imp, pla, argola, saquinho } = db.tx((t) => ({
     imp: t.insert('impressoras', { nome: 'A1 mini', modelo: 'A1 mini', valorPago: 2000, vidaUtilH: 4000, potenciaW: 80, manutencaoH: 0.1, ativa: true }),
@@ -50,9 +50,7 @@ function criarKettlebell(precoEtiquetaCentavos: number, categoria = 'Chaveiro') 
     saquinho: t.insert('materiais', { tipo: 'insumo', nome: 'Saquinho', unidade: 'un', custoMedio: 0.1, minimo: 10, arquivado: false }),
   }));
   return salvarProduto({
-    nome: 'Chaveiro Kettlebell Preto',
-    modelo: 'Chaveiro Kettlebell',
-    cor: 'Preto',
+    nome: 'Chaveiro Kettlebell',
     categoria,
     precoEtiquetaCentavos,
     mesas: [{ pecasPorMesa: 8, tempoMin: 240, impressoraId: imp.id, filamentos: [{ materialId: pla.id, gramas: 64 }] }],

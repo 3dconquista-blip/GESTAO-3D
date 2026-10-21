@@ -12,7 +12,7 @@ export function ConfigCategorias() {
   const uso = (c: string) => db.all('produtos').filter((p) => !p.excluido && normalizarBusca(p.categoria) === normalizarBusca(c)).length;
 
   return (
-    <Pagina titulo="Categorias" voltarPara="/config" largura="estreita">
+    <Pagina titulo="Categorias" voltarPara="/config/custos" largura="estreita">
       <Cartao>
         <div class="pilha pilha-m">
           {db.config.categorias.map((c) =>

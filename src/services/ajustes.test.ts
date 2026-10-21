@@ -9,7 +9,7 @@ import { carregarExemplo } from './exemplo.ts';
 import { ajusteInventario, bloqueioEstornoManual, estornarMovimentoManual, registrarPerda, valorParadoEmEstoque } from './ajustes.ts';
 import { registrarVenda } from './vendas.ts';
 
-const kb = () => db.all('produtos').find((p) => p.nome === 'Chaveiro Kettlebell Preto')!;
+const kb = () => db.all('produtos').find((p) => p.nome === 'Chaveiro Kettlebell')!;
 
 describe('ajustes de estoque', () => {
   beforeEach(() => {

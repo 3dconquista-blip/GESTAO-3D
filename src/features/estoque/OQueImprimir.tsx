@@ -62,13 +62,13 @@ function CartaoItem({ item }: { item: ItemImprimir }) {
         </div>
         <div class="imp-filamentos">
           {item.filamentoNecessario.map((f) => (
-            <span key={f.materialId} class={f.suficiente ? '' : 'txt-ruim'}>
-              {nomeMaterial(f.materialId)}: {formatGramas(f.gramas)} {f.suficiente ? `(tem ${formatGramas(f.saldo)})` : `— falta filamento (tem ${formatGramas(f.saldo)})`}
+            <span key={f.tipo} class={f.suficiente ? '' : 'txt-ruim'}>
+              {f.tipo}: {formatGramas(f.gramas)} {f.suficiente ? `(tem ${formatGramas(f.saldo)} somando as cores)` : `— falta filamento (tem ${formatGramas(f.saldo)} somando as cores)`}
             </span>
           ))}
         </div>
         <div>
-          <Botao pequeno variante="secundario" icone="impressora" href={`/producao/nova?produto=${p.id}`}>
+          <Botao pequeno variante="secundario" icone="impressora" href={`/producao/nova?produto=${p.id}&mesas=${item.mesas[0]?.mesas ?? 1}`}>
             Registrar produção
           </Botao>
         </div>
@@ -98,7 +98,7 @@ export function OQueImprimir(_props: TelaProps) {
       {faltas.length > 0 && (
         <Aviso tom="ruim" titulo="Filamento não dá para tudo">
           {faltas.map((f) => (
-            <div key={f.materialId}>
+            <div key={f.tipo}>
               {f.nome}: precisa de {formatGramas(f.necessarioG)}, tem {formatGramas(f.saldoG)} (faltam {formatGramas(f.faltaG)}). <a href="#/compra">Compra de material</a>
             </div>
           ))}
@@ -115,7 +115,7 @@ export function OQueImprimir(_props: TelaProps) {
       )}
       <Cartao titulo="Pedidos personalizados para produzir">
         {lista.pedidos.length === 0 ? (
-          <p class="muted">Nenhum pedido em "Aprovado" ou "Em produção".</p>
+          <p class="muted">Nenhum pedido em produção.</p>
         ) : (
           <Lista>
             {lista.pedidos.map((p) => {

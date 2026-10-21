@@ -1,16 +1,41 @@
 .venda-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 @media (min-width: 960px) { .venda-layout { grid-template-columns: minmax(0, 1.4fr) minmax(320px, 1fr); align-items: start; } .venda-lado { position: sticky; top: 12px; } }
 .venda-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
-.venda-produto { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 12px 8px; min-height: 150px; border: 1px solid var(--borda); border-radius: var(--raio); background: var(--superficie); cursor: pointer; font: inherit; text-align: center; box-shadow: var(--sombra); }
-.venda-produto:active { transform: scale(0.98); }
+/* Cartão do produto: o botão grande adiciona 1; o "−" (só com o produto na venda) tira 1. Botões irmãos, sem aninhar. */
+.venda-produto { position: relative; border: 1px solid var(--borda); border-radius: var(--raio); background: var(--superficie); box-shadow: var(--sombra); }
+.venda-produto-add { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 100%; min-height: 150px; padding: 12px 8px; border: 0; border-radius: var(--raio); background: transparent; color: inherit; cursor: pointer; font: inherit; text-align: center; }
+.venda-produto-add:active { transform: scale(0.98); }
+.venda-produto-add:focus-visible, .venda-produto-menos:focus-visible { outline: 3px solid rgba(43, 74, 107, 0.35); outline-offset: 1px; }
 .venda-produto.no-carrinho { border-color: var(--principal); box-shadow: 0 0 0 2px rgba(43, 74, 107, 0.2); }
-.venda-qtd { position: absolute; top: 6px; right: 6px; min-width: 26px; height: 26px; border-radius: 999px; background: var(--principal); color: #fff; font-weight: 800; display: flex; align-items: center; justify-content: center; padding: 0 6px; }
-.venda-nome { font-weight: 650; color: var(--marinho); font-size: 0.88rem; line-height: 1.2; }
+.venda-qtd { position: absolute; top: 6px; right: 6px; min-width: 26px; height: 26px; border-radius: 999px; background: var(--principal); color: #fff; font-weight: 800; display: flex; align-items: center; justify-content: center; padding: 0 6px; pointer-events: none; }
+/* 36px visíveis; o ::after estende a área de toque para 44px. */
+.venda-produto-menos { position: absolute; top: 6px; left: 6px; width: 36px; height: 36px; padding: 0; border-radius: 999px; border: 1px solid var(--borda-forte); background: var(--superficie); color: var(--principal); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.venda-produto-menos::after { content: ''; position: absolute; inset: -4px; }
+.venda-produto-menos:active { background: var(--principal-claro); }
+.venda-nome { font-weight: 650; color: var(--marinho); font-size: 0.88rem; line-height: 1.2; overflow-wrap: anywhere; }
 .venda-preco { font-weight: 800; color: var(--principal); }
 .venda-saldo { font-size: 0.75rem; color: var(--texto-3); }
-.venda-linha { display: flex; flex-direction: column; gap: 6px; padding-bottom: 10px; border-bottom: 1px dashed var(--borda); }
+/* Linha do carrinho: nome e total em cima; quantidade (stepper) e preço unitário embaixo. */
+.venda-linha { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px 10px; padding-bottom: 10px; border-bottom: 1px dashed var(--borda); }
 .venda-linha:last-child { border-bottom: 0; padding-bottom: 0; }
-.venda-linha-topo { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.venda-linha-campos { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 8px; }
+.venda-linha-nome { color: var(--marinho); overflow-wrap: anywhere; }
+.venda-linha-total { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.venda-linha .stepper { max-width: 184px; }
+.venda-linha-unit { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .venda-desconto { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; }
 .venda-cancelada { text-decoration: line-through; color: var(--texto-3); }
+/* Barra fixa: forma de pagamento em cima do "Registrar" (celular); lado a lado a partir de 560px. */
+.venda-barra { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.venda-barra-forma { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.venda-barra-taxa { font-size: 0.78rem; text-align: center; }
+.barra-acoes-fixa .venda-barra .btn { flex: 0 0 auto; min-height: 48px; font-size: 1rem; }
+@media (min-width: 560px) {
+  .venda-barra { flex-direction: row; align-items: center; justify-content: flex-end; gap: 12px; }
+  .venda-barra-forma { flex: 0 1 360px; }
+  .barra-acoes-fixa .venda-barra .btn { min-width: 220px; }
+}
+/* O aviso com "Desfazer" sobe para não cobrir a barra (nem cair em cima da forma ou do "Registrar"). Conta com a
+   barra no fim da página, onde ela para acima do espaço da barra inferior (48px a mais que quando gruda). */
+.app:has(.venda-barra) .toasts { bottom: calc(var(--barra-inferior) + env(safe-area-inset-bottom) + 206px); }
+@media (min-width: 560px) { .app:has(.venda-barra) .toasts { bottom: calc(var(--barra-inferior) + env(safe-area-inset-bottom) + 150px); } }
+@media (min-width: 960px) { .app:has(.venda-barra) .toasts { bottom: 168px; } }

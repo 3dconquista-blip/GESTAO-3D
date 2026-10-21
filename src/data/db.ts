@@ -8,6 +8,7 @@
 import { agoraISO } from '../lib/dates.ts';
 import { novoId } from '../lib/id.ts';
 import { configPadrao, migrarConfig } from './defaults.ts';
+import { migrarRegistro } from './migracoes.ts';
 import type { Base, Colecoes, Config, ID, NomeColecao, Novo } from './types.ts';
 import { COLECOES } from './types.ts';
 
@@ -87,14 +88,14 @@ export class Store {
     this.notificar();
   }
 
-  /** Substitui tudo em memória (sem persistir). */
+  /** Substitui tudo em memória (sem persistir). Registros antigos são migrados só em memória (migracoes.ts). */
   aplicarSnapshot(snap: Snapshot) {
     this.mapas = mapasVazios();
     this.config = snap.config ? migrarConfig({ ...configPadrao(), ...snap.config }) : configPadrao();
     for (const c of COLECOES) {
       const lista = snap.colecoes[c] || [];
       const mapa = this.mapas[c] as Map<ID, Base>;
-      for (const r of lista) mapa.set(r.id, r);
+      for (const r of lista) mapa.set(r.id, migrarRegistro(c, r));
     }
     this.version++;
     this.cache.clear();
@@ -121,8 +122,9 @@ export class Store {
   }
 
   /**
-   * Aplica registros vindos de fora (sincronização na nuvem): grava no aparelho e
-   * avisa a interface, mas NÃO chama aoGravar (para não reenviar à nuvem).
+   * Aplica registros vindos de fora (sincronização na nuvem): grava no aparelho (como vieram) e
+   * avisa a interface, mas NÃO chama aoGravar (para não reenviar à nuvem). Em memória, os registros
+   * antigos são migrados (migracoes.ts).
    */
   aplicarExternos(alteracoes: Alteracao[]) {
     if (!alteracoes.length) return;
@@ -133,7 +135,7 @@ export class Store {
       }
       const mapa = this.mapas[a.col] as Map<ID, Base> | undefined;
       if (!mapa) continue;
-      if (a.rec) mapa.set(a.id, a.rec);
+      if (a.rec) mapa.set(a.id, migrarRegistro(a.col, a.rec));
       else mapa.delete(a.id);
     }
     this.version++;

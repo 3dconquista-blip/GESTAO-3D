@@ -6,11 +6,15 @@ import type { Impressora, Material, Pagamento, ParametrosCusto, Pedido, PedidoIt
 import { round4, toCents } from '../lib/money.ts';
 import type { ContextoCusto } from './pricing.ts';
 import {
+  ETAPAS,
+  ETAPAS_FLUXO,
   alertasPedido,
   calcularOrcamento,
   custoItem,
   descontoQtdSugerido,
+  emProducao,
   estatisticasDoCliente,
+  etapaNoFluxo,
   faltasCatalogo,
   lucroPedido,
   numeroPedido,
@@ -21,6 +25,7 @@ import {
   reservasCatalogo,
   resultadoPedido,
   situacaoFinanceira,
+  tituloAutomatico,
   type EntradaOrcamento,
 } from './pedidos.ts';
 
@@ -259,11 +264,14 @@ describe('alertas', () => {
     assert.equal(alertasPedido(p, [], '2026-10-18')[0].texto, 'Prazo vence hoje');
     assert.deepEqual(alertasPedido(p, [], '2026-10-19'), [{ tipo: 'atrasado', tom: 'ruim', texto: 'Atrasado há 1 dia' }]);
   });
-  it('"Aprovado sem sinal há 3 dias"', () => {
-    const p = pedido({ etapa: 'aprovado', aprovadoEm: '2026-10-13', sinalDispensadoMotivo: 'cliente antigo' });
+  it('"Aprovado sem sinal há 3 dias" (em produção; também em pedido antigo na etapa \'aprovado\')', () => {
+    const p = pedido({ etapa: 'producao', aprovadoEm: '2026-10-13', producaoEm: '2026-10-13', sinalDispensadoMotivo: 'cliente antigo' });
     assert.deepEqual(alertasPedido(p, [], '2026-10-15'), []);
     assert.equal(alertasPedido(p, [], '2026-10-16')[0].texto, 'Aprovado sem sinal há 3 dias');
     assert.deepEqual(alertasPedido(p, [pagamento({ valorCentavos: 1000 })], '2026-10-16'), []);
+    assert.equal(alertasPedido({ ...p, etapa: 'aprovado', producaoEm: undefined }, [], '2026-10-16')[0].tipo, 'sem_sinal');
+    assert.equal(alertasPedido({ ...p, aprovadoEm: undefined }, [], '2026-10-16')[0].tipo, 'sem_sinal');
+    assert.deepEqual(alertasPedido({ ...p, etapa: 'pronto' }, [], '2026-10-16'), []);
   });
   it('"Pronto e não retirado há mais de 5 dias"', () => {
     const p = pedido({ etapa: 'pronto', prontoEm: '2026-10-10' });
@@ -279,14 +287,29 @@ describe('alertas', () => {
 });
 
 describe('etapas e reservas', () => {
-  it('só avança ou cancela', () => {
-    assert.equal(proximaEtapa('orcamento'), 'aprovado');
+  it('só avança ou cancela; "Aprovado" e "Em produção" são uma etapa só', () => {
+    assert.deepEqual(ETAPAS_FLUXO, ['orcamento', 'producao', 'pronto', 'entregue']);
+    assert.deepEqual(ETAPAS, ['orcamento', 'producao', 'pronto', 'entregue', 'cancelado']);
+    assert.equal(proximaEtapa('orcamento'), 'producao');
+    assert.equal(proximaEtapa('aprovado'), 'pronto');
+    assert.equal(proximaEtapa('producao'), 'pronto');
     assert.equal(proximaEtapa('pronto'), 'entregue');
     assert.equal(proximaEtapa('entregue'), null);
     assert.equal(podeMover('aprovado', 'pronto'), true);
+    assert.equal(podeMover('orcamento', 'aprovado'), true);
     assert.equal(podeMover('producao', 'aprovado'), false);
+    assert.equal(podeMover('aprovado', 'producao'), false);
+    assert.equal(podeMover('pronto', 'producao'), false);
     assert.equal(podeMover('pronto', 'cancelado'), true);
     assert.equal(podeMover('entregue', 'cancelado'), false);
+  });
+  it('etapa obsoleta "aprovado" vale "Em produção"', () => {
+    assert.equal(etapaNoFluxo('aprovado'), 'producao');
+    for (const e of ETAPAS) assert.equal(etapaNoFluxo(e), e);
+    assert.deepEqual(
+      [...ETAPAS, 'aprovado' as const].filter(emProducao),
+      ['producao', 'aprovado'],
+    );
   });
   it('catálogo fica reservado da aprovação até a entrega', () => {
     const item = { id: 'ic', tipo: 'catalogo' as const, produtoId: 'k', descricao: 'Kettlebell', quantidade: 3, custoUnit: 2.4873, custoTotal: 7.4619 };
@@ -302,15 +325,30 @@ describe('etapas e reservas', () => {
     assert.deepEqual(f, [{ produtoId: 'k', descricao: 'Kettlebell', quantidade: 3, disponivel: 2, faltam: 1 }]);
     assert.equal(faltasCatalogo(peds[1], peds, () => 10)[0].faltam, 0);
   });
-  it('Kanban agrupa por etapa e ordena pelo prazo', () => {
+  it('Kanban agrupa por etapa e ordena pelo prazo; pedido antigo em "aprovado" fica em Em produção', () => {
     const g = pedidosPorEtapa([
       pedido({ id: 'a', numero: 1, etapa: 'producao' }),
       pedido({ id: 'b', numero: 2, etapa: 'producao', prazo: '2026-10-20' }),
-      pedido({ id: 'c', numero: 3, etapa: 'aprovado' }),
+      pedido({ id: 'c', numero: 3, etapa: 'aprovado', prazo: '2026-10-25' }),
     ]);
-    assert.deepEqual(g.producao.map((p) => p.id), ['b', 'a']);
-    assert.equal(g.aprovado.length, 1);
+    assert.deepEqual(g.producao.map((p) => p.id), ['b', 'c', 'a']);
+    assert.equal(g.aprovado.length, 0);
     assert.equal(g.cancelado.length, 0);
+  });
+});
+
+describe('título automático', () => {
+  const it1 = (descricao: string, quantidade = 1) => ({ descricao, quantidade });
+  it('pela descrição e quantidade do primeiro item, com quantos itens há além dele', () => {
+    assert.equal(tituloAutomatico([it1('Chaveiro com nome')]), 'Chaveiro com nome');
+    assert.equal(tituloAutomatico([it1('Chaveiro com nome', 20)]), '20 × Chaveiro com nome');
+    assert.equal(tituloAutomatico([it1('Chaveiro com nome'), it1('Kettlebell', 5)]), 'Chaveiro com nome + 1 item');
+    assert.equal(tituloAutomatico([it1('Chaveiro com nome', 20), it1('A'), it1('B')]), '20 × Chaveiro com nome + 2 itens');
+  });
+  it('pula itens sem descrição; nenhuma descrição = vazio', () => {
+    assert.equal(tituloAutomatico([it1(' ', 3), it1('Chaveiro Kettlebell', 5)]), '5 × Chaveiro Kettlebell + 1 item');
+    assert.equal(tituloAutomatico([it1(''), it1('  ')]), '');
+    assert.equal(tituloAutomatico([]), '');
   });
 });
 

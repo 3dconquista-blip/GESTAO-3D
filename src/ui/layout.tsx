@@ -164,3 +164,20 @@ export function Secao({ titulo, children, acoes }: { titulo: ComponentChildren; 
     </div>
   );
 }
+
+/**
+ * Bloco recolhido "Mais detalhes": guarda o que é usado raramente, para a tela mostrar só o essencial.
+ * `resumo` aparece ao lado do título (ex.: "categoria Chaveiro · mínimo 10").
+ */
+export function MaisDetalhes({ titulo = 'Mais detalhes', resumo, aberto, children }: { titulo?: ComponentChildren; resumo?: ComponentChildren; aberto?: boolean; children?: ComponentChildren }) {
+  return (
+    <details class="mais-detalhes" open={aberto}>
+      <summary>
+        <span class="mais-detalhes-titulo">{titulo}</span>
+        {resumo && <small class="mais-detalhes-resumo">{resumo}</small>}
+        <Icon nome="baixo" tamanho={18} class="mais-detalhes-seta" />
+      </summary>
+      <div class="mais-detalhes-corpo">{children}</div>
+    </details>
+  );
+}

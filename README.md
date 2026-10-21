@@ -15,7 +15,7 @@ Responde em segundos:
 
 | Área | Recursos |
 |---|---|
-| Precificação | Parâmetros de custo, impressoras, materiais, ficha técnica com mesas e filamentos, custo por peça, margem de lucro por produto, preço por canal, simulador e calculadora rápida |
+| Precificação | Parâmetros de custo, impressoras, materiais, ficha técnica com mesas e filamentos, custo por peça, margem de lucro por produto e preço por canal |
 | Estoque e produção | Casa e expositores, movimentações, compra com custo médio, "pesei o carretel" (carretel vazio de 170 g), registrar produção, venda rápida, alertas, "O que imprimir", copiar produto com um clique, excluir produto (o histórico fica) e edição em massa |
 | Parceiros (consignação) | Expositores, mix, instalação, reposição, visita de acerto em 5 passos com rascunho salvo, comprovante por WhatsApp, pendências, agenda, desempenho e termo de consignação |
 | Pedidos e clientes | Orçamento, Kanban de etapas, sinal e saldo, cancelamento, mensagens de WhatsApp, ficha do cliente |
@@ -50,14 +50,16 @@ primeiro acesso).
 
 ## Publicar
 
-O app é estático: `index.html`, `manifest.webmanifest`, `sw.js`, `icons/` e `dist/` (já gerado e versionado). Pode ser
-servido por qualquer hospedagem estática com HTTPS, como o GitHub Pages. Os dados ficam no aparelho (IndexedDB); para
-usar em mais de um aparelho, veja `NUVEM.md` ou use backup e restauração.
+Passo a passo completo em **`PUBLICAR.md`**: o app no GitHub Pages (`https://<usuario>.github.io/GESTAO-3D/`) e os
+dados no Supabase (login e sincronização entre aparelhos, `NUVEM.md`). O app é estático: `index.html`,
+`manifest.webmanifest`, `sw.js`, `icons/` e `dist/` (já gerado e versionado); o `.nojekyll` evita o processamento do
+Jekyll no Pages.
 
 ## Documentos
 
 - `ESPECIFICACAO.md` — especificação completa do produto
 - `DECISOES.md` — decisões tomadas onde a especificação não define
 - `CONVENCOES.md` — organização do código, regras e comandos
-- `NUVEM.md` — como ligar a sincronização com o Supabase
+- `PUBLICAR.md` — publicar na internet (GitHub Pages + Supabase) e usar em outros aparelhos
+- `NUVEM.md` — SQL e configuração da sincronização com o Supabase
 - `CHANGELOG.md` — versões

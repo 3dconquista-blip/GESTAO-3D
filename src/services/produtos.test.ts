@@ -1,19 +1,17 @@
-// Cadastro de produtos (7.1): código automático, padrões, validações, duplicar para outra cor,
-// arquivar, alerta de licença e prévia de custo (Exemplo A).
+// Cadastro de produtos (7.1): código automático, padrões, validações, produto sem cor fixa (decisão 85: a ficha
+// guarda o tipo do filamento e o custo é a média dos carretéis do tipo), arquivar, alerta de licença e prévia de
+// custo (Exemplo A).
 import { beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { db } from '../data/db.ts';
-import { custoProduto, produtosAtivos, saldoCasa } from '../data/selectors.ts';
+import { custoProduto, produtosAtivos } from '../data/selectors.ts';
 import type { ID, Impressora, Material } from '../data/types.ts';
-import { CASA } from '../data/types.ts';
 import { toCents } from '../lib/money.ts';
-import { ErroNegocio, lancarMov } from './estoque.ts';
+import { ErroNegocio } from './estoque.ts';
 import {
   alertaLicenca,
   arquivarProduto,
-  duplicarParaOutraCor,
   formatarCodigoProduto,
-  nomeParaCor,
   previaCusto,
   salvarProduto,
   type DadosProduto,
@@ -61,14 +59,12 @@ function montarExemploA(): Fixture {
   });
 }
 
-/** Chaveiro Kettlebell Preto do Exemplo A: 1 mesa de 8 peças, 4 h, 64 g de PLA Preto, argola e saquinho. */
+/** Chaveiro Kettlebell do Exemplo A: 1 mesa de 8 peças, 4 h, 64 g de PLA (qualquer cor), argola e saquinho. */
 function kettlebell(extra: Partial<DadosProduto> = {}): DadosProduto {
   return {
-    nome: 'Chaveiro Kettlebell Preto',
-    modelo: 'Chaveiro Kettlebell',
-    cor: 'Preto',
+    nome: 'Chaveiro Kettlebell',
     categoria: 'Chaveiro',
-    mesas: [{ pecasPorMesa: 8, tempoMin: 240, impressoraId: f.imp.id, filamentos: [{ materialId: f.preto.id, gramas: 64 }] }],
+    mesas: [{ pecasPorMesa: 8, tempoMin: 240, impressoraId: f.imp.id, filamentos: [{ tipo: 'PLA', gramas: 64 }] }],
     componentes: [
       { materialId: f.argola.id, quantidade: 1 },
       { materialId: f.saquinho.id, quantidade: 1 },
@@ -89,7 +85,7 @@ beforeEach(() => {
 describe('salvarProduto — criação', () => {
   it('gera código automático em sequência e aplica os padrões', () => {
     const p1 = salvarProduto(kettlebell());
-    const p2 = salvarProduto(kettlebell({ nome: 'Chaveiro Anilha', modelo: 'Chaveiro Anilha', cor: '' }));
+    const p2 = salvarProduto(kettlebell({ nome: 'Chaveiro Anilha' }));
     assert.equal(p1.codigo, 'P-0001');
     assert.equal(p2.codigo, 'P-0002');
     assert.equal(db.config.proximoCodigoProduto, 3);
@@ -108,10 +104,9 @@ describe('salvarProduto — criação', () => {
     assert.equal(p.precoEtiquetaCentavos, 790);
   });
 
-  it('preço informado é respeitado e o modelo padrão é o nome', () => {
-    const p = salvarProduto(kettlebell({ modelo: '', precoEtiquetaCentavos: 1500 }));
+  it('preço informado é respeitado', () => {
+    const p = salvarProduto(kettlebell({ precoEtiquetaCentavos: 1500 }));
     assert.equal(p.precoEtiquetaCentavos, 1500);
-    assert.equal(p.modelo, 'Chaveiro Kettlebell Preto');
   });
 
   it('o código pula números já usados', () => {
@@ -141,8 +136,8 @@ describe('salvarProduto — criação', () => {
     const p = salvarProduto(
       kettlebell({
         mesas: [
-          { id: 'x', pecasPorMesa: 1, tempoMin: 60, impressoraId: f.imp.id, filamentos: [{ materialId: f.preto.id, gramas: 20 }] },
-          { id: 'x', pecasPorMesa: 1, tempoMin: 30, impressoraId: f.imp.id, filamentos: [{ materialId: f.preto.id, gramas: 10 }] },
+          { id: 'x', pecasPorMesa: 1, tempoMin: 60, impressoraId: f.imp.id, filamentos: [{ tipo: 'PLA', gramas: 20 }] },
+          { id: 'x', pecasPorMesa: 1, tempoMin: 30, impressoraId: f.imp.id, filamentos: [{ tipo: 'PLA', gramas: 10 }] },
         ],
       }),
     );
@@ -152,20 +147,20 @@ describe('salvarProduto — criação', () => {
 });
 
 describe('salvarProduto — validações', () => {
-  const mesa = (extra: object) => ({ pecasPorMesa: 8, tempoMin: 240, impressoraId: f.imp.id, filamentos: [{ materialId: f.preto.id, gramas: 64 }], ...extra });
+  const mesa = (extra: object) => ({ pecasPorMesa: 8, tempoMin: 240, impressoraId: f.imp.id, filamentos: [{ tipo: 'PLA' as const, gramas: 64 }], ...extra });
   const casos: [string, () => DadosProduto, RegExp][] = [
     ['sem nome', () => kettlebell({ nome: '  ' }), /nome do produto/],
-    ['sem categoria', () => kettlebell({ categoria: '' }), /categoria/],
     ['sem mesa', () => kettlebell({ mesas: [] }), /pelo menos uma mesa/],
-    ['sem impressora', () => kettlebell({ mesas: [mesa({ impressoraId: '' })] }), /Mesa 1: escolha a impressora/],
     ['impressora inexistente', () => kettlebell({ mesas: [mesa({ impressoraId: 'nao-existe' })] }), /impressora/],
     ['peças 0', () => kettlebell({ mesas: [mesa({ pecasPorMesa: 0 })] }), /Peças desta mesa/],
     ['peças fracionadas', () => kettlebell({ mesas: [mesa({ pecasPorMesa: 1.5 })] }), /número inteiro/],
     ['tempo 0', () => kettlebell({ mesas: [mesa({ tempoMin: 0 })] }), /tempo da mesa/],
     ['sem filamento', () => kettlebell({ mesas: [mesa({ filamentos: [] })] }), /pelo menos um filamento/],
-    ['filamento inexistente', () => kettlebell({ mesas: [mesa({ filamentos: [{ materialId: 'x', gramas: 1 }] })] }), /filamento cadastrado/],
+    ['filamento inexistente', () => kettlebell({ mesas: [mesa({ filamentos: [{ materialId: 'x', gramas: 1 }] })] }), /não existe mais/],
+    ['tipo inválido', () => kettlebell({ mesas: [mesa({ filamentos: [{ tipo: 'Madeira', gramas: 1 }] })] }), /tipo de filamento/],
     ['insumo como filamento', () => kettlebell({ mesas: [mesa({ filamentos: [{ materialId: f.argola.id, gramas: 1 }] })] }), /não é um filamento/],
-    ['gramas negativas', () => kettlebell({ mesas: [mesa({ filamentos: [{ materialId: f.preto.id, gramas: -1 }] })] }), /gramas/],
+    ['gramas negativas', () => kettlebell({ mesas: [mesa({ filamentos: [{ tipo: 'PLA', gramas: -1 }] })] }), /gramas/],
+    ['gramas 0', () => kettlebell({ mesas: [mesa({ filamentos: [{ tipo: 'PLA', gramas: 0 }] })] }), /gramas de PLA/],
     ['componente com quantidade 0', () => kettlebell({ componentes: [{ materialId: f.argola.id, quantidade: 0 }] }), /maior que zero/],
     ['componente inexistente', () => kettlebell({ componentes: [{ materialId: 'x', quantidade: 1 }] }), /componente cadastrado/],
     ['filamento como componente', () => kettlebell({ componentes: [{ materialId: f.preto.id, quantidade: 1 }] }), /não é um insumo/],
@@ -181,9 +176,10 @@ describe('salvarProduto — validações', () => {
       assert.equal(db.config.proximoCodigoProduto, 1);
     });
   }
-  it('gramas 0 são aceitas', () => {
-    const p = salvarProduto(kettlebell({ mesas: [mesa({ filamentos: [{ materialId: f.preto.id, gramas: 0 }] })] }));
-    assert.equal(p.mesas[0].filamentos[0].gramas, 0);
+  it('sem impressora ativa pede para cadastrar uma', () => {
+    db.tx((t) => t.update('impressoras', f.imp.id, { ativa: false }));
+    falha(() => salvarProduto(kettlebell({ mesas: [mesa({ impressoraId: undefined })] })), /Cadastre uma impressora/);
+    assert.equal(db.all('produtos').length, 0);
   });
 });
 
@@ -208,79 +204,36 @@ describe('salvarProduto — edição', () => {
   });
 });
 
-describe('duplicarParaOutraCor', () => {
-  it('Kettlebell Preto -> Rosa trocando o filamento: mesmo modelo e ficha, novo código e estoque separado', () => {
-    const preto = salvarProduto(kettlebell({ precoEtiquetaCentavos: 1500, estoqueMinimo: 5, fotoDataUrl: 'data:image/png;base64,AAA' }));
-    const rosa = duplicarParaOutraCor(preto.id, { cor: 'Rosa', trocarFilamento: { de: f.preto.id, para: f.rosa.id } });
-    assert.notEqual(rosa.id, preto.id);
-    assert.equal(rosa.nome, 'Chaveiro Kettlebell Rosa');
-    assert.equal(rosa.modelo, 'Chaveiro Kettlebell');
-    assert.equal(rosa.cor, 'Rosa');
-    assert.equal(rosa.codigo, 'P-0002');
-    assert.equal(rosa.categoria, 'Chaveiro');
-    assert.equal(rosa.precoEtiquetaCentavos, 1500);
-    assert.equal(rosa.estoqueMinimo, 5);
-    assert.equal(rosa.maoDeObraMin, 2);
-    assert.equal(rosa.fotoDataUrl, undefined);
-    assert.deepEqual(rosa.mesas[0].filamentos, [{ materialId: f.rosa.id, gramas: 64 }]);
-    assert.equal(rosa.mesas[0].pecasPorMesa, 8);
-    assert.equal(rosa.mesas[0].tempoMin, 240);
-    assert.notEqual(rosa.mesas[0].id, preto.mesas[0].id);
-    assert.deepEqual(rosa.componentes, preto.componentes);
-    // O original não muda.
-    assert.deepEqual(db.get('produtos', preto.id)?.mesas[0].filamentos, [{ materialId: f.preto.id, gramas: 64 }]);
-    assert.equal(custoProduto(rosa.id), 2.4873);
-    // Cada cor é um item de estoque separado.
-    db.tx((t) => lancarMov(t, { data: '2026-10-16', produtoId: preto.id, quantidade: 15, origem: null, destino: CASA, tipo: 'producao' }));
-    assert.equal(saldoCasa(preto.id), 15);
-    assert.equal(saldoCasa(rosa.id), 0);
-  });
-
-  it('sem a cor no nome, acrescenta a nova cor; nome explícito vence', () => {
-    const p = salvarProduto(kettlebell({ nome: 'Display PIX', modelo: 'Display PIX', cor: '' }));
-    assert.equal(duplicarParaOutraCor(p.id, { cor: 'Azul' }).nome, 'Display PIX Azul');
-    assert.equal(duplicarParaOutraCor(p.id, { cor: 'Verde', nome: 'Display Verde Limão' }).nome, 'Display Verde Limão');
-    assert.equal(db.all('produtos').length, 3);
-  });
-
-  it('troca para um filamento já presente soma as gramas', () => {
-    const p = salvarProduto(
-      kettlebell({
-        mesas: [
-          {
-            pecasPorMesa: 8,
-            tempoMin: 240,
-            impressoraId: f.imp.id,
-            filamentos: [
-              { materialId: f.preto.id, gramas: 64 },
-              { materialId: f.rosa.id, gramas: 10 },
-            ],
-          },
-        ],
-      }),
-    );
-    const c = duplicarParaOutraCor(p.id, { cor: 'Rosa', trocarFilamento: { de: f.preto.id, para: f.rosa.id } });
-    assert.deepEqual(c.mesas[0].filamentos, [{ materialId: f.rosa.id, gramas: 74 }]);
-  });
-
-  it('recusa a mesma cor, cor vazia e filamento que não está na ficha', () => {
+describe('produto sem cor fixa (decisão 85)', () => {
+  it('a ficha guarda o tipo; um carretel informado fica só como cor sugerida', () => {
     const p = salvarProduto(kettlebell());
-    falha(() => duplicarParaOutraCor(p.id, { cor: 'preto' }), /já é da cor/);
-    falha(() => duplicarParaOutraCor(p.id, { cor: ' ' }), /nova cor/);
-    falha(() => duplicarParaOutraCor(p.id, { cor: 'Rosa', trocarFilamento: { de: f.rosa.id, para: f.preto.id } }), /não está na ficha/);
-    falha(() => duplicarParaOutraCor(p.id, { cor: 'Rosa', trocarFilamento: { de: f.preto.id, para: f.argola.id } }), /filamento da nova cor/);
-    falha(() => duplicarParaOutraCor('nao-existe', { cor: 'Rosa' }), /não encontrado/);
-    assert.equal(db.all('produtos').length, 1);
-    assert.equal(db.config.proximoCodigoProduto, 2);
+    assert.deepEqual(p.mesas[0].filamentos, [{ tipo: 'PLA', gramas: 64 }]);
+    assert.equal(p.cor, undefined);
+    const q = salvarProduto(kettlebell({ nome: 'Outro', mesas: [{ pecasPorMesa: 8, tempoMin: 240, impressoraId: f.imp.id, filamentos: [{ materialId: f.rosa.id, gramas: 64 }] }] }));
+    assert.deepEqual(q.mesas[0].filamentos, [{ tipo: 'PLA', materialId: f.rosa.id, gramas: 64 }]);
   });
-});
 
-describe('nomeParaCor', () => {
-  it('troca a cor como palavra inteira, sem diferenciar maiúsculas', () => {
-    assert.equal(nomeParaCor('Chaveiro Kettlebell Preto', 'Preto', 'Rosa'), 'Chaveiro Kettlebell Rosa');
-    assert.equal(nomeParaCor('chaveiro preto fosco', 'Preto', 'Rosa'), 'chaveiro Rosa fosco');
-    assert.equal(nomeParaCor('Pretinho', 'Preto', 'Rosa'), 'Pretinho Rosa');
-    assert.equal(nomeParaCor('Vaso', '', 'Azul'), 'Vaso Azul');
+  it('o custo do filamento é a média do kg dos carretéis ativos do tipo', () => {
+    const p = salvarProduto(kettlebell());
+    assert.equal(custoProduto(p.id), 2.4873);
+    // Rosa passa a R$ 120/kg: média (100 + 120) ÷ 2 = R$ 110/kg → material R$ 0,88 por peça.
+    db.tx((t) => t.update('materiais', f.rosa.id, { custoMedio: 120 }));
+    assert.equal(custoProduto(p.id), 2.5753);
+    // Carretel arquivado sai da média.
+    db.tx((t) => t.update('materiais', f.rosa.id, { arquivado: true }));
+    assert.equal(custoProduto(p.id), 2.4873);
+  });
+
+  it('sem carretel do tipo, a prévia avisa para cadastrar um', () => {
+    const p = previaCusto({ mesas: [{ pecasPorMesa: 1, tempoMin: 60, impressoraId: f.imp.id, filamentos: [{ tipo: 'PETG', gramas: 10 }] }], componentes: [], maoDeObraMin: 2 });
+    assert.ok(p.composicao.avisos.some((a) => /Cadastre um filamento PETG/.test(a)));
+  });
+
+  it('sem impressora e sem categoria: a primeira impressora ativa e a categoria do último produto', () => {
+    salvarProduto(kettlebell({ categoria: 'Brinde' }));
+    const p = salvarProduto(kettlebell({ nome: 'Sem detalhes', categoria: undefined, mesas: [{ pecasPorMesa: 1, tempoMin: 30, filamentos: [{ tipo: 'PLA', gramas: 10 }] }] }));
+    assert.equal(p.mesas[0].impressoraId, f.imp.id);
+    assert.equal(p.categoria, 'Brinde');
   });
 });
 
@@ -309,7 +262,7 @@ describe('alertaLicenca', () => {
 
 describe('previaCusto — Exemplo A', () => {
   const ficha = () => ({
-    mesas: [{ pecasPorMesa: 8, tempoMin: 240, impressoraId: f.imp.id, filamentos: [{ materialId: f.preto.id, gramas: 64 }] }],
+    mesas: [{ pecasPorMesa: 8, tempoMin: 240, impressoraId: f.imp.id, filamentos: [{ tipo: 'PLA' as const, gramas: 64 }] }],
     componentes: [
       { materialId: f.argola.id, quantidade: 1 },
       { materialId: f.saquinho.id, quantidade: 1 },
@@ -371,7 +324,8 @@ describe('previaCusto — Exemplo A', () => {
   });
 
   it('ficha incompleta não quebra a prévia (avisos)', () => {
-    const p = previaCusto({ mesas: [{ pecasPorMesa: 1, tempoMin: 60, impressoraId: '', filamentos: [] }], componentes: [], maoDeObraMin: 2 });
+    // Sem impressora vale a primeira ativa; PETG sem carretel cadastrado vira aviso, sem quebrar o cálculo.
+    const p = previaCusto({ mesas: [{ pecasPorMesa: 1, tempoMin: 60, impressoraId: '', filamentos: [{ tipo: 'PETG', gramas: 10 }] }], componentes: [], maoDeObraMin: 2 });
     assert.ok(p.composicao.avisos.length > 0);
     assert.ok(Number.isFinite(p.custoUnit));
   });

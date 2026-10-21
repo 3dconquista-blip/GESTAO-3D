@@ -2,11 +2,12 @@
 import type { Cents } from '../lib/money.ts';
 import { round4 } from '../lib/money.ts';
 import { db } from './db.ts';
-import type { ID, LocalId, Material, ParametrosCusto, Parceiro, Produto } from './types.ts';
+import type { ID, LocalId, Material, ParametrosCusto, Parceiro, Produto, TipoFilamento } from './types.ts';
 import { CASA, localParceiro } from './types.ts';
 import type { ComposicaoCusto, ContextoCusto, StatusMargem } from '../domain/pricing.ts';
 import { composicaoCusto, custosComMargem, statusMargem } from '../domain/pricing.ts';
 import { calcularSaldos, calcularSaldosMateriais, resumoSaldos, type SaldosProduto } from '../domain/stock.ts';
+import { custoKgDoTipo } from '../domain/filamento.ts';
 
 /** Memoiza o resultado enquanto db.version não mudar. */
 export function memo<T>(fn: () => T): () => T {
@@ -39,8 +40,14 @@ export function memoPorChave<T>(fn: (chave: string) => T): (chave: string) => T 
 
 export const contextoCusto = memo((): ContextoCusto => {
   const imp = new Map(db.all('impressoras').map((i) => [i.id, i]));
-  const mat = new Map(db.all('materiais').map((m) => [m.id, m]));
-  return { custos: db.config.custos, impressora: (id) => imp.get(id), material: (id) => mat.get(id) };
+  const materiais = db.all('materiais');
+  const mat = new Map(materiais.map((m) => [m.id, m]));
+  const porTipo = new Map<TipoFilamento, number | undefined>();
+  const custoKgTipo = (tipo: TipoFilamento) => {
+    if (!porTipo.has(tipo)) porTipo.set(tipo, custoKgDoTipo(materiais, tipo));
+    return porTipo.get(tipo);
+  };
+  return { custos: db.config.custos, impressora: (id) => imp.get(id), material: (id) => mat.get(id), custoKgTipo };
 });
 
 export const composicaoProduto = memoPorChave((produtoId): ComposicaoCusto | null => {

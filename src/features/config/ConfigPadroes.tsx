@@ -3,14 +3,14 @@ import { useState } from 'preact/hooks';
 import { db } from '../../data/db.ts';
 import { atualizarParcerias, atualizarPedidosConfig } from '../../services/config.ts';
 import { Botao, Campo, Cartao, Dinheiro, Numero, Pagina, Segmentado } from '../../ui/index.ts';
-import { BarraSalvar, tentar } from './comum.tsx';
+import { BarraSalvar, TambemNestaSecao, tentar } from './comum.tsx';
 
 export function ConfigParcerias() {
   const [p, setP] = useState(() => ({ ...db.config.parcerias, divisoes: [...db.config.parcerias.divisoes] }));
   const [nova, setNova] = useState<number | null>(null);
   const freqPadrao = p.frequenciaPadraoDias === 15 || p.frequenciaPadraoDias === 30;
   return (
-    <Pagina titulo="Parcerias" voltarPara="/config" largura="estreita">
+    <Pagina titulo="Parcerias" voltarPara="/config/pedidos" largura="estreita">
       <Cartao titulo="Divisões disponíveis" acoes={<small class="muted">% do parceiro sobre o total vendido</small>}>
         <div class="pilha pilha-m">
           <div class="cfg-chips">
@@ -73,7 +73,7 @@ export function ConfigPedidos() {
   const [p, setP] = useState(() => ({ ...db.config.pedidos }));
   const mudar = (patch: Partial<typeof p>) => setP({ ...p, ...patch });
   return (
-    <Pagina titulo="Pedidos" subtitulo="Padrões do orçamento de pedidos personalizados" voltarPara="/config" largura="estreita">
+    <Pagina titulo="Pedidos e parcerias" subtitulo="Padrões do orçamento de pedidos personalizados" voltarPara="/config" largura="estreita">
       <Cartao>
         <div class="campos-2">
           <Campo rotulo="Pedido mínimo">
@@ -96,6 +96,7 @@ export function ConfigPedidos() {
           </Campo>
         </div>
       </Cartao>
+      <TambemNestaSecao itens={[{ rotulo: 'Parcerias', texto: 'Divisões, frequência do acerto e avisos', href: '/config/parcerias', icone: 'parceiros' }]} />
       <BarraSalvar>
         <Botao variante="primario" icone="check" onClick={() => tentar(() => atualizarPedidosConfig(p))}>
           Salvar

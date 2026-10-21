@@ -3,13 +3,13 @@ import { useState } from 'preact/hooks';
 import { db } from '../../data/db.ts';
 import { atualizarEmpresa } from '../../services/config.ts';
 import { AreaTexto, Botao, Campo, Cartao, Foto, Pagina, Texto } from '../../ui/index.ts';
-import { BarraSalvar, tentar } from './comum.tsx';
+import { BarraSalvar, TambemNestaSecao, tentar } from './comum.tsx';
 
 export function ConfigEmpresa() {
   const [e, setE] = useState(() => ({ ...db.config.empresa }));
   const mudar = (patch: Partial<typeof e>) => setE({ ...e, ...patch });
   return (
-    <Pagina titulo="Empresa" voltarPara="/config" largura="estreita">
+    <Pagina titulo="Empresa e mensagens" voltarPara="/config" largura="estreita">
       <Cartao>
         <div class="formulario">
           <Campo rotulo="Nome da empresa" obrigatorio>
@@ -43,6 +43,7 @@ export function ConfigEmpresa() {
           </Campo>
         </div>
       </Cartao>
+      <TambemNestaSecao itens={[{ rotulo: 'Mensagens do WhatsApp', texto: 'Modelos do orçamento, cobrança, comprovante e novidades', href: '/config/mensagens', icone: 'whatsapp' }]} />
       <BarraSalvar>
         <Botao variante="primario" icone="check" onClick={() => tentar(() => atualizarEmpresa(e))}>
           Salvar

@@ -25,6 +25,7 @@ import { alocarPagamentos, pendenciaAnterior, pendenciaVencida, type AlocacaoAce
 import { mensagemComprovante } from '../domain/mensagemAcerto.ts';
 import { idsEstornados } from '../domain/stock.ts';
 import { ErroNegocio, estornarMov, lancarMov } from './estoque.ts';
+import { encerrarParceriaTx } from './parceiros.ts';
 
 const chave = (parceiroId: ID) => `rascunho-acerto:${parceiroId}`;
 
@@ -116,6 +117,7 @@ export function montarRascunho(parceiroId: ID, data: ISODate = hojeISO(), opts?:
     pagamento: { valorCentavos: null, forma: 'pix', data },
     final: !!opts?.final,
     passo: 1,
+    passos3: true,
     atualizadoEm: agoraISO(),
   };
   return sugerir(r);
@@ -334,6 +336,8 @@ export function concluirAcerto(r: RascunhoAcerto): Acerto {
       });
     }
     atualizarStatusTx(t, p.id);
+    // Acerto final: recolheu tudo, então já encerra a parceria (expositores voltam para Casa), na mesma transação.
+    if (r.final) encerrarParceriaTx(t, p.id, r.data);
     return t.get('acertos', a.id)!;
   });
   apagarRascunho(p.id);
@@ -342,10 +346,11 @@ export function concluirAcerto(r: RascunhoAcerto): Acerto {
 
 // ---------------------------------------------------------------- Reabrir
 
-/** Só o último acerto concluído de cada parceiro pode ser reaberto. */
+/** Só o último acerto concluído de cada parceiro pode ser reaberto (o acerto final, que encerrou a parceria, não). */
 export function podeReabrir(acertoId: ID): boolean {
   const a = db.get('acertos', acertoId);
   if (!a || a.situacao !== 'concluido') return false;
+  if (a.final && db.get('parceiros', a.parceiroId)?.situacao === 'encerrado') return false;
   return ultimoAcerto(a.parceiroId)?.id === a.id;
 }
 
@@ -356,6 +361,7 @@ export function podeReabrir(acertoId: ID): boolean {
 export function reabrirUltimoAcerto(parceiroId: ID): RascunhoAcerto {
   const a = ultimoAcerto(parceiroId);
   if (!a) throw new ErroNegocio('Este parceiro não tem acerto concluído.');
+  if (!podeReabrir(a.id)) throw new ErroNegocio('O acerto final encerrou a parceria e não pode ser reaberto.');
   const p = db.get('parceiros', parceiroId)!;
   const pagamentoOriginal = db.all('pagamentos').find((x) => x.origem === 'acerto' && x.refId === a.id && x.tipo === 'acerto' && !x.estornoDe);
   db.tx((t) => {
@@ -412,6 +418,7 @@ export function reabrirUltimoAcerto(parceiroId: ID): RascunhoAcerto {
     pagamento: { valorCentavos: pagamentoOriginal?.valorCentavos ?? null, forma: pagamentoOriginal?.forma === 'dinheiro' ? 'dinheiro' : 'pix', data: pagamentoOriginal?.data ?? a.data },
     final: a.final,
     passo: 3,
+    passos3: true,
     atualizadoEm: agoraISO(),
   };
   return salvarRascunho(rascunho);

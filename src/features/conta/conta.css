@@ -32,3 +32,7 @@
 .conta-marca svg g {
   fill: #9db8d3;
 }
+
+/* Link para configurar outro aparelho */
+.nuvem-link { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px dashed var(--borda-forte); border-radius: var(--raio-p); background: var(--superficie-2); }
+.nuvem-link strong { color: var(--marinho); }

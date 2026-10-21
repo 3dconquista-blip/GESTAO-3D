@@ -1,5 +1,5 @@
-// Detalhe do parceiro: dados, mix, saldo no expositor, acertos, pendências e desempenho.
-// Ações: "Iniciar acerto", "Reposição avulsa", "Recolher", "Encerrar parceria".
+// Detalhe do parceiro, enxuto (decisão 95): à vista o acerto, "Levar peças", o que está no expositor e o que há a
+// receber. Acertos, desempenho, dados, mix, recolher, termo, pausar e encerrar ficam em "Mais detalhes".
 import { useState } from 'preact/hooks';
 import { navegar, type TelaProps } from '../../app/router.ts';
 import { db } from '../../data/db.ts';
@@ -21,9 +21,9 @@ import {
   Cartao,
   Data,
   Dinheiro,
-  Grade,
   Indicador,
   Linha,
+  MaisDetalhes,
   Modal,
   Pagina,
   Resumo,
@@ -147,15 +147,15 @@ export function ParceiroDetalhe({ params }: TelaProps) {
     <Pagina
       titulo={p.nome}
       subtitulo={descricaoParceiro(p)}
-      voltarPara="/parceiros/lista"
+      voltarPara="/parceiros"
       acoes={
         ativo && p.instaladoEm ? (
           <Botao variante="primario" icone="check" href={`/parceiros/${p.id}/acerto`}>
-            {rascunho ? 'Continuar acerto' : 'Iniciar acerto'}
+            {rascunho ? 'Continuar acerto' : 'Fazer acerto'}
           </Botao>
         ) : ativo ? (
-          <Botao variante="primario" icone="estoque" href={`/parceiros/${p.id}/instalacao`}>
-            Instalação
+          <Botao variante="primario" icone="estoque" href={`/parceiros/${p.id}/levar`}>
+            Levar peças
           </Botao>
         ) : undefined
       }
@@ -208,89 +208,79 @@ export function ParceiroDetalhe({ params }: TelaProps) {
       <div class="indicadores">
         <Indicador rotulo="Peças no expositor" valor={formatQtd(pecas)} />
         <Indicador rotulo="A receber" valor={formatBRL(pend.saldo?.aReceber ?? 0)} tom={(pend.saldo?.aReceber ?? 0) > 0 ? 'atencao' : undefined} detalhe={(pend.saldo?.aPagar ?? 0) > 0 ? `A repassar: ${formatBRL(pend.saldo!.aPagar)}` : undefined} />
-        <Indicador rotulo="Sua parte por mês" valor={des && des.totais.acertos ? formatBRL(des.totais.suaPartePorMesCentavos) : '—'} detalhe={des && des.totais.acertos ? `${des.totais.acertos} acerto(s)` : undefined} />
         <Indicador rotulo="Próximo acerto" valor={formatData(agenda.proximoAcerto)} detalhe={agenda.diasDesdeUltimaVisita != null ? `última visita há ${agenda.diasDesdeUltimaVisita} dia(s)` : undefined} />
       </div>
 
-      {ativo && (
-        <Linha>
-          {p.instaladoEm && (
-            <>
-              <Botao icone="repor" href={`/parceiros/${p.id}/reposicao`}>
-                Reposição avulsa
-              </Botao>
-              <Botao icone="voltar" href={`/parceiros/${p.id}/recolher`}>
-                Recolher
-              </Botao>
-            </>
-          )}
-          <Botao icone="arquivo" href={`/parceiros/${p.id}/termo`}>
-            Termo
+      <Linha>
+        {ativo && p.instaladoEm && (
+          <Botao icone="estoque" href={`/parceiros/${p.id}/levar`}>
+            Levar peças
           </Botao>
-          {(pend.saldo?.aReceber ?? 0) > 0 && (
-            <Botao icone="dinheiro" onClick={() => setRecebendo(true)}>
-              Receber pendência
-            </Botao>
-          )}
-        </Linha>
-      )}
+        )}
+        {(pend.saldo?.aReceber ?? 0) > 0 && (
+          <Botao icone="dinheiro" onClick={() => setRecebendo(true)}>
+            Receber pendência
+          </Botao>
+        )}
+        {p.whatsapp && <BotaoWhatsApp numero={p.whatsapp} />}
+        <BotaoMapa p={p} />
+      </Linha>
 
-      <Grade colunas={2}>
-        <Cartao titulo="No expositor agora" acoes={<Botao pequeno variante="fantasma" href={`/parceiros/${p.id}/mix`}>Mix</Botao>}>
-          {estoque.length === 0 ? (
-            <p class="muted">{p.instaladoEm ? 'Nenhuma peça no expositor.' : 'Ainda não instalado.'}</p>
-          ) : (
-            <Resumo
-              linhas={[
-                ...estoque.map((e) => {
-                  const ideal = p.mix.find((m) => m.produtoId === e.produtoId)?.nivelIdeal;
-                  return {
-                    rotulo: `${nomeProduto(e.produtoId)} · ${formatBRL(precoNoParceiro(p, e.produtoId))}`,
-                    valor: (
-                      <span class={e.qtd < 0 ? 'txt-ruim' : ''}>
-                        {formatQtd(e.qtd)}
-                        {ideal != null ? ` / ideal ${ideal}` : ''}
-                      </span>
-                    ),
-                  };
-                }),
-                { rotulo: 'Total', valor: formatQtd(pecas), destaque: true },
-              ]}
-            />
-          )}
-          {exps.length > 0 && <p class="muted" style={{ marginTop: '8px' }}>Expositor: {exps.map((e) => `${e.codigo} (${e.modelo})`).join(', ')}</p>}
-        </Cartao>
-
-        <Cartao titulo="Desempenho">
-          {des && des.totais.acertos > 0 ? (
-            <Resumo
-              linhas={[
-                { rotulo: 'Unidades vendidas', valor: formatQtd(des.totais.unidades) },
-                { rotulo: 'Total vendido', valor: formatBRL(des.totais.brutoCentavos) },
-                { rotulo: 'Sua parte', valor: formatBRL(des.totais.suaParteCentavos) },
-                { rotulo: 'Média por dia', valor: `${formatNumero(des.totais.mediaPorDia, 2)} peça(s)` },
-                { rotulo: 'Giro', valor: formatPct(des.totais.giroPct) },
-                { rotulo: 'Mais vendidos', valor: des.maisVendidos.slice(0, 3).map((m) => `${nomeProduto(m.produtoId)} (${m.unidades})`).join(', ') || '—' },
-                {
-                  rotulo: 'Retorno do expositor',
-                  valor:
-                    des.retornoExpositor.retorno != null
-                      ? `${formatPct(des.retornoExpositor.retorno * 100, 0)} (${formatBRL(des.retornoExpositor.lucroAcumuladoCentavos)} de ${formatBRL(des.retornoExpositor.custoExpositoresCentavos)})`
-                      : '—',
-                },
-              ]}
-            />
-          ) : (
-            <p class="muted">Os números aparecem depois do primeiro acerto.</p>
-          )}
-        </Cartao>
-      </Grade>
-
-      <Cartao titulo="Acertos">
-        <Tabela colunas={colAcertos} linhas={acertos} chave={(a) => a.id} onClickLinha={(a) => navegar(`/acertos/${a.id}`)} vazio={<p class="muted">Nenhum acerto ainda.</p>} />
+      <Cartao titulo="No expositor agora">
+        {estoque.length === 0 ? (
+          <p class="muted">{p.instaladoEm ? 'Nenhuma peça no expositor.' : 'Ainda não levou peças.'}</p>
+        ) : (
+          <Resumo
+            linhas={[
+              ...estoque.map((e) => {
+                const ideal = p.mix.find((m) => m.produtoId === e.produtoId)?.nivelIdeal;
+                return {
+                  rotulo: `${nomeProduto(e.produtoId)} · ${formatBRL(precoNoParceiro(p, e.produtoId))}`,
+                  valor: (
+                    <span class={e.qtd < 0 ? 'txt-ruim' : ''}>
+                      {formatQtd(e.qtd)}
+                      {ideal != null ? ` / ideal ${ideal}` : ''}
+                    </span>
+                  ),
+                };
+              }),
+              { rotulo: 'Total', valor: formatQtd(pecas), destaque: true },
+            ]}
+          />
+        )}
+        {exps.length > 0 && <p class="muted" style={{ marginTop: '8px' }}>Expositor: {exps.map((e) => `${e.codigo}${e.modelo ? ` (${e.modelo})` : ''}`).join(', ')}</p>}
       </Cartao>
 
-      <Cartao titulo="Dados">
+      <MaisDetalhes titulo="Acertos" resumo={acertos.length ? `${acertos.length} acerto(s) · último em ${formatData(acertos[0].data)}` : 'nenhum ainda'}>
+        <Tabela colunas={colAcertos} linhas={acertos} chave={(a) => a.id} onClickLinha={(a) => navegar(`/acertos/${a.id}`)} vazio={<p class="muted">Nenhum acerto ainda.</p>} />
+      </MaisDetalhes>
+
+      <MaisDetalhes titulo="Desempenho" resumo={des && des.totais.acertos ? `sua parte ${formatBRL(des.totais.suaPartePorMesCentavos)} por mês` : undefined}>
+        {des && des.totais.acertos > 0 ? (
+          <Resumo
+            linhas={[
+              { rotulo: 'Sua parte por mês', valor: formatBRL(des.totais.suaPartePorMesCentavos) },
+              { rotulo: 'Unidades vendidas', valor: formatQtd(des.totais.unidades) },
+              { rotulo: 'Total vendido', valor: formatBRL(des.totais.brutoCentavos) },
+              { rotulo: 'Sua parte', valor: formatBRL(des.totais.suaParteCentavos) },
+              { rotulo: 'Média por dia', valor: `${formatNumero(des.totais.mediaPorDia, 2)} peça(s)` },
+              { rotulo: 'Giro', valor: formatPct(des.totais.giroPct) },
+              { rotulo: 'Mais vendidos', valor: des.maisVendidos.slice(0, 3).map((m) => `${nomeProduto(m.produtoId)} (${m.unidades})`).join(', ') || '—' },
+              {
+                rotulo: 'Retorno do expositor',
+                valor:
+                  des.retornoExpositor.retorno != null
+                    ? `${formatPct(des.retornoExpositor.retorno * 100, 0)} (${formatBRL(des.retornoExpositor.lucroAcumuladoCentavos)} de ${formatBRL(des.retornoExpositor.custoExpositoresCentavos)})`
+                    : '—',
+              },
+            ]}
+          />
+        ) : (
+          <p class="muted">Os números aparecem depois do primeiro acerto.</p>
+        )}
+      </MaisDetalhes>
+
+      <MaisDetalhes titulo="Dados e mais ações">
         <Resumo
           linhas={[
             { rotulo: 'Responsável', valor: p.responsavel || '—' },
@@ -308,10 +298,21 @@ export function ParceiroDetalhe({ params }: TelaProps) {
           ]}
         />
         <Linha class="parc-dados-acoes">
-          {p.whatsapp && <BotaoWhatsApp numero={p.whatsapp} pequeno />}
-          <BotaoMapa p={p} pequeno />
           <Botao pequeno icone="editar" href={`/parceiros/${p.id}/editar`}>
             Editar
+          </Botao>
+          {ativo && (
+            <Botao pequeno href={`/parceiros/${p.id}/mix`}>
+              Mix e preços
+            </Botao>
+          )}
+          {ativo && p.instaladoEm && (
+            <Botao pequeno icone="voltar" href={`/parceiros/${p.id}/recolher`}>
+              Recolher peças
+            </Botao>
+          )}
+          <Botao pequeno icone="arquivo" href={`/parceiros/${p.id}/termo`}>
+            Termo
           </Botao>
           {!p.arquivado && p.situacao !== 'encerrado' && (
             <Botao pequeno variante="fantasma" onClick={alternarPausa}>
@@ -329,7 +330,7 @@ export function ParceiroDetalhe({ params }: TelaProps) {
             </Botao>
           )}
         </Linha>
-      </Cartao>
+      </MaisDetalhes>
 
       {recebendo && <ModalRecebimento parceiroId={p.id} aberto onFechar={() => setRecebendo(false)} maximo={pend.saldo?.aReceber ?? 0} />}
     </Pagina>

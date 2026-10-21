@@ -25,7 +25,7 @@ function variaveis(texto: string): string[] {
 export function ConfigMensagens() {
   const [textos, setTextos] = useState<Record<ChaveMensagem, string>>(() => ({ ...db.config.mensagens }));
   return (
-    <Pagina titulo="Mensagens" subtitulo="Palavras entre chaves, como {cliente}, são trocadas pelos dados na hora de enviar." voltarPara="/config" largura="estreita">
+    <Pagina titulo="Mensagens" subtitulo="Palavras entre chaves, como {cliente}, são trocadas pelos dados na hora de enviar." voltarPara="/config/empresa" largura="estreita">
       {MODELOS.map((m) => {
         const mudou = textos[m.chave] !== db.config.mensagens[m.chave];
         return (

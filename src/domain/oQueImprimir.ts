@@ -3,26 +3,30 @@
 //   arredondada para cima, porque a reposição prevista é uma média).
 // reposição_prevista = Σ nos parceiros ativos (com o produto no mix) da média de unidades vendidas nos
 //   últimos 3 acertos em que o produto estava no expositor; sem histórico, nível ideal − saldo no parceiro (mín. 0).
-// Ordem (mais urgente primeiro): falta para pedidos aprovados, sem estoque em Casa (≤ 0), abaixo do mínimo,
+// Ordem (mais urgente primeiro): falta para pedidos em produção, sem estoque em Casa (≤ 0), abaixo do mínimo,
 //   só reposição; dentro do grupo, menor cobertura (saldo ÷ demanda), depois maior necessidade, depois nome.
 // Filamento: o das mesas inteiras que serão impressas (mesas × gramas da mesa, como o tempo total);
-//   "suficiente" compara o saldo com a soma da demanda de TODOS os itens da lista por material.
-import type { Acerto, ID, Material, Parceiro, Pedido, Produto } from '../data/types.ts';
+//   "suficiente" compara o saldo de todas as cores do tipo com a soma da demanda de TODOS os itens da lista.
+import type { Acerto, ID, Material, Parceiro, Pedido, Produto, TipoFilamento } from '../data/types.ts';
 import { roundTo } from '../lib/money.ts';
 import { formatQtd } from '../lib/format.ts';
 import { mesasNecessarias } from './consumo.ts';
 import { acertosConcluidos } from './desempenho.ts';
+import { carreteisDoTipo, tipoDoSlot } from './filamento.ts';
 
 /** Quantos acertos entram na média de vendas da reposição prevista. */
 export const ACERTOS_MEDIA_REPOSICAO = 3;
 
-/** Etapas em que os itens de catálogo ficam reservados em Casa (da aprovação até a entrega). */
+/**
+ * Etapas em que os itens de catálogo ficam reservados em Casa (da aprovação até a entrega). 'aprovado' é a etapa
+ * obsoleta de pedidos antigos, igual a 'producao'.
+ */
 export const ETAPAS_RESERVA: Pedido['etapa'][] = ['aprovado', 'producao', 'pronto'];
 
-/** Etapas dos pedidos listados embaixo de "O que imprimir". */
+/** Etapas dos pedidos listados embaixo de "O que imprimir" ("Em produção", inclusive a obsoleta 'aprovado'). */
 export const ETAPAS_IMPRIMIR: Pedido['etapa'][] = ['aprovado', 'producao'];
 
-/** Itens de catálogo reservados em Casa por pedidos aprovados, em produção ou prontos (ainda não baixados). */
+/** Itens de catálogo reservados em Casa por pedidos em produção ou prontos (ainda não baixados). */
 export function reservasDePedidos(pedidos: Pedido[]): Map<ID, number> {
   const m = new Map<ID, number>();
   for (const p of pedidos) {
@@ -92,12 +96,13 @@ export interface MesasDoItem {
 }
 
 export interface FilamentoDoItem {
-  materialId: ID;
+  /** Tipo de filamento (a cor é escolhida na produção). */
+  tipo: TipoFilamento;
   /** Gramas para as peças necessárias deste item. */
   gramas: number;
-  /** Saldo atual do material (g). */
+  /** Saldo atual de todos os carretéis ativos do tipo (g). */
   saldo: number;
-  /** O saldo cobre a demanda de toda a lista para este material. */
+  /** O saldo do tipo cobre a demanda de toda a lista. */
   suficiente: boolean;
 }
 
@@ -108,7 +113,7 @@ export interface ItemImprimir {
   estoqueMinimo: number;
   /** Média prevista para repor nos parceiros (pode ter casas decimais). */
   reposicaoPrevista: number;
-  /** Reservado em pedidos aprovados. */
+  /** Reservado em pedidos em produção ou prontos. */
   reservado: number;
   /** Peças a imprimir (inteiro > 0). */
   necessidade: number;
@@ -123,7 +128,8 @@ export interface ItemImprimir {
 }
 
 export interface ResumoFilamento {
-  materialId: ID;
+  tipo: TipoFilamento;
+  /** Ex.: 'PLA (todas as cores)'. */
   nome: string;
   /** Soma das gramas de todos os itens da lista. */
   necessarioG: number;
@@ -134,9 +140,9 @@ export interface ResumoFilamento {
 
 export interface ListaImprimir {
   itens: ItemImprimir[];
-  /** Pedidos em "Aprovado" ou "Em produção", pelo prazo (sem prazo no fim). */
+  /** Pedidos "Em produção", pelo prazo (sem prazo no fim). */
   pedidos: Pedido[];
-  /** Demanda de filamento da lista por material (maior falta primeiro). */
+  /** Demanda de filamento da lista por tipo (maior falta primeiro). */
   filamentos: ResumoFilamento[];
 }
 
@@ -152,7 +158,7 @@ export interface EntradaOQueImprimir {
   reservasPedidos: Map<ID, number>;
   saldoMaterial: (materialId: ID) => number;
   materiais: Material[];
-  /** Pedidos em "Aprovado" ou "Em produção" (outras etapas são ignoradas). */
+  /** Pedidos "Em produção" (outras etapas são ignoradas). */
   pedidosPersonalizados: Pedido[];
 }
 
@@ -168,26 +174,35 @@ function motivoDoItem(saldo: number, minimo: number, reposicao: number, reservad
 }
 
 /**
- * Filamento para imprimir as mesas inteiras (como o tempo total): mesas × gramas da mesa, somado por material.
- * Ex.: 10 Kettlebell = 2 mesas de 8 = 2 × 64 g = 128 g.
+ * Filamento para imprimir as mesas inteiras (como o tempo total): mesas × gramas da mesa, somado por tipo de
+ * filamento (a cor só é escolhida na produção). Ex.: 10 Kettlebell = 2 mesas de 8 = 2 × 64 g = 128 g de PLA.
  */
-export function gramasDasMesas(produto: Produto, mesas: { mesaId: ID; mesas: number }[]): { materialId: ID; gramas: number }[] {
-  const total = new Map<ID, number>();
+export function gramasDasMesas(
+  produto: Produto,
+  mesas: { mesaId: ID; mesas: number }[],
+  material?: (id: ID) => Material | undefined,
+): { tipo: TipoFilamento; gramas: number }[] {
+  const total = new Map<TipoFilamento, number>();
   for (const m of mesas) {
     const mesa = produto.mesas.find((x) => x.id === m.mesaId);
     if (!mesa) continue;
-    for (const f of mesa.filamentos) total.set(f.materialId, (total.get(f.materialId) || 0) + m.mesas * (f.gramas || 0));
+    for (const f of mesa.filamentos) {
+      const tipo = tipoDoSlot(f, material);
+      total.set(tipo, (total.get(tipo) || 0) + m.mesas * (f.gramas || 0));
+    }
   }
-  return Array.from(total, ([materialId, gramas]) => ({ materialId, gramas: roundTo(gramas, 2) }));
+  return Array.from(total, ([tipo, gramas]) => ({ tipo, gramas: roundTo(gramas, 2) }));
 }
 
 /** Lista "O que imprimir": itens do mais urgente ao menos urgente, pedidos pelo prazo e resumo de filamento. */
 export function listaOQueImprimir(e: EntradaOQueImprimir): ListaImprimir {
+  const porId = new Map(e.materiais.map((m) => [m.id, m]));
+  const material = (id: ID) => porId.get(id);
   const ativos = e.parceirosAtivos.filter((p) => !p.arquivado && p.situacao === 'ativo');
   const historicos = new Map<ID, Acerto[]>(ativos.map((p) => [p.id, acertosConcluidos(e.acertos, p.id)]));
 
   type Rascunho = Omit<ItemImprimir, 'filamentoNecessario' | 'filamentoSuficiente'> & {
-    gramas: { materialId: ID; gramas: number }[];
+    gramas: { tipo: TipoFilamento; gramas: number }[];
     cobertura: number;
   };
   const rascunhos: Rascunho[] = [];
@@ -223,19 +238,21 @@ export function listaOQueImprimir(e: EntradaOQueImprimir): ListaImprimir {
       necessidade,
       mesas,
       tempoTotalMin: mesas.reduce((s, m) => s + m.tempoMin, 0),
-      gramas: gramasDasMesas(produto, mesas),
+      gramas: gramasDasMesas(produto, mesas, material),
       urgencia,
       motivo: motivoDoItem(saldo, minimo, reposicao, reservado),
       cobertura: demanda > 0 ? saldo / demanda : saldo < 0 ? -1 : 0,
     });
   }
 
-  // Demanda de filamento da lista inteira, por material.
-  const demandaMat = new Map<ID, number>();
-  for (const r of rascunhos) for (const g of r.gramas) demandaMat.set(g.materialId, (demandaMat.get(g.materialId) || 0) + g.gramas);
-  const saldoMat = new Map<ID, number>();
-  for (const id of demandaMat.keys()) saldoMat.set(id, e.saldoMaterial(id));
-  const cobre = (id: ID) => (saldoMat.get(id) || 0) + 1e-9 >= (demandaMat.get(id) || 0);
+  // Demanda de filamento da lista inteira, por tipo; o saldo soma todas as cores (carretéis ativos) do tipo.
+  const demandaMat = new Map<TipoFilamento, number>();
+  for (const r of rascunhos) for (const g of r.gramas) demandaMat.set(g.tipo, (demandaMat.get(g.tipo) || 0) + g.gramas);
+  const saldoMat = new Map<TipoFilamento, number>();
+  for (const tipo of demandaMat.keys()) {
+    saldoMat.set(tipo, roundTo(carreteisDoTipo(e.materiais, tipo).reduce((s, m) => s + Math.max(0, e.saldoMaterial(m.id)), 0), 2));
+  }
+  const cobre = (tipo: TipoFilamento) => (saldoMat.get(tipo) || 0) + 1e-9 >= (demandaMat.get(tipo) || 0);
 
   const itens: ItemImprimir[] = rascunhos
     .sort(
@@ -247,19 +264,18 @@ export function listaOQueImprimir(e: EntradaOQueImprimir): ListaImprimir {
     )
     .map(({ gramas, cobertura: _c, ...r }) => {
       const filamentoNecessario = gramas.map((g) => ({
-        materialId: g.materialId,
+        tipo: g.tipo,
         gramas: g.gramas,
-        saldo: saldoMat.get(g.materialId) || 0,
-        suficiente: cobre(g.materialId),
+        saldo: saldoMat.get(g.tipo) || 0,
+        suficiente: cobre(g.tipo),
       }));
       return { ...r, filamentoNecessario, filamentoSuficiente: filamentoNecessario.every((f) => f.suficiente) };
     });
 
-  const nomes = new Map(e.materiais.map((m) => [m.id, m.nome]));
-  const filamentos: ResumoFilamento[] = Array.from(demandaMat, ([materialId, necessario]) => {
+  const filamentos: ResumoFilamento[] = Array.from(demandaMat, ([tipo, necessario]) => {
     const necessarioG = roundTo(necessario, 2);
-    const saldoG = saldoMat.get(materialId) || 0;
-    return { materialId, nome: nomes.get(materialId) ?? 'Material removido', necessarioG, saldoG, faltaG: Math.max(0, roundTo(necessarioG - saldoG, 2)) };
+    const saldoG = saldoMat.get(tipo) || 0;
+    return { tipo, nome: `${tipo} (todas as cores)`, necessarioG, saldoG, faltaG: Math.max(0, roundTo(necessarioG - saldoG, 2)) };
   }).sort((a, b) => b.faltaG - a.faltaG || a.nome.localeCompare(b.nome, 'pt-BR'));
 
   const pedidos = e.pedidosPersonalizados

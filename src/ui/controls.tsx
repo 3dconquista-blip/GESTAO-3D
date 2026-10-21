@@ -49,9 +49,23 @@ export function Botao({ children, variante = 'secundario', pequeno, bloco, icone
 
 // ---------------------------------------------------------------- Campo (rótulo + dica + erro)
 
+/**
+ * Clicar no texto ou no espaço vazio de um <label> ativa o primeiro controle de dentro. Quando ele é um botão
+ * (Segmentado, botões de cor, o "−" do contador), isso mudaria o valor sem querer: o clique só foca o campo de
+ * texto, se houver.
+ */
+function cliqueNoRotulo(e: JSX.TargetedMouseEvent<HTMLLabelElement>) {
+  if ((e.target as Element).closest('input,select,textarea,button,a')) return;
+  const label = e.currentTarget;
+  if (label.control instanceof HTMLButtonElement) {
+    e.preventDefault();
+    label.querySelector<HTMLElement>('input:not([type=hidden]),select,textarea')?.focus();
+  }
+}
+
 export function Campo({ rotulo, dica, erro, obrigatorio, children, class: cls }: { rotulo?: ComponentChildren; dica?: ComponentChildren; erro?: string | null; obrigatorio?: boolean; children: ComponentChildren; class?: string }) {
   return (
-    <label class={`campo ${erro ? 'campo-erro' : ''} ${cls ?? ''}`}>
+    <label class={`campo ${erro ? 'campo-erro' : ''} ${cls ?? ''}`} onClick={cliqueNoRotulo}>
       {rotulo && (
         <span class="campo-rotulo">
           {rotulo}

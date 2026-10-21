@@ -1,8 +1,8 @@
-/* Kanban (computador) e lista agrupada (celular) */
+/* Kanban (computador) e lista agrupada (celular): Orçamento, Em produção, Pronto, Entregue */
 .kanban { display: none; }
 .ped-grupos { display: flex; flex-direction: column; gap: 14px; }
 @media (min-width: 960px) {
-  .kanban { display: grid; grid-template-columns: repeat(5, minmax(200px, 1fr)); gap: 10px; align-items: start; overflow-x: auto; padding-bottom: 6px; }
+  .kanban { display: grid; grid-template-columns: repeat(4, minmax(200px, 1fr)); gap: 10px; align-items: start; overflow-x: auto; padding-bottom: 6px; }
   .ped-grupos { display: none; }
 }
 .kanban-coluna { background: var(--superficie-2); border: 1px solid var(--borda); border-radius: var(--raio); padding: 8px; display: flex; flex-direction: column; gap: 8px; min-height: 160px; }
@@ -16,13 +16,23 @@
 .ped-titulo { font-weight: 650; color: var(--marinho); line-height: 1.25; }
 .ped-meta { font-size: 0.8rem; color: var(--texto-3); display: flex; flex-wrap: wrap; gap: 4px 10px; }
 .ped-alertas { display: flex; flex-wrap: wrap; gap: 4px; }
-.ped-etapas { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+.ped-etapas { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
 .ped-etapa { text-align: center; font-size: 0.72rem; font-weight: 650; color: var(--texto-3); padding: 6px 2px; border-bottom: 3px solid var(--borda); }
 .ped-etapa.feita { color: var(--ok); border-bottom-color: var(--ok); }
 .ped-etapa.atual { color: var(--principal); border-bottom-color: var(--principal); }
 .ped-item { border: 1px solid var(--borda); border-radius: var(--raio); padding: 12px; display: flex; flex-direction: column; gap: 10px; background: var(--superficie-2); }
 .ped-item-topo { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ped-item-tempo { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.ped-item-porpeca { font-size: 0.85rem; margin: 0; }
 .ped-historico { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 0.9rem; }
 .ped-historico li { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 8px; }
 .ped-historico small { color: var(--texto-3); }
 .ped-mensagens { display: flex; flex-wrap: wrap; gap: 6px; }
+/* Bloco do valor no formulário: campo "Valor" + linha "Calculado · sinal · lucro". */
+.ped-preco-linha { margin: 0; font-size: 0.9rem; color: var(--texto-2); font-variant-numeric: tabular-nums; }
+/* Itens no detalhe: "2 × Chaveiro · PLA Azul 120 g". */
+.ped-itens { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ped-itens li { display: flex; flex-direction: column; gap: 2px; }
+.ped-itens small { color: var(--texto-3); }
+/* Janela de etapa: cores de cada peça personalizada em "Pronto". */
+.ped-cores-item { display: flex; flex-direction: column; gap: 8px; }

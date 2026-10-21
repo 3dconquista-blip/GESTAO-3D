@@ -1,5 +1,6 @@
 // "Pedidos" (9.3): no computador, Kanban com colunas por etapa (arrastar para avançar);
-// no celular, lista agrupada por etapa com botão "Avançar".
+// no celular, lista agrupada por etapa com botão "Avançar". Quatro etapas: Orçamento, Em produção, Pronto e
+// Entregue (pedidos antigos em "Aprovado" aparecem em Em produção).
 import { useState } from 'preact/hooks';
 import type { TelaProps } from '../../app/router.ts';
 import { db } from '../../data/db.ts';
@@ -7,7 +8,7 @@ import { ROTULO_ETAPA } from '../../data/defaults.ts';
 import { useDb } from '../../data/hooks.ts';
 import { nomeCliente } from '../../data/selectors.ts';
 import type { EtapaPedido, Pedido } from '../../data/types.ts';
-import { ETAPAS_FLUXO, alertasPedido, numeroPedido, pedidosPorEtapa, proximaEtapa, situacaoFinanceira } from '../../domain/pedidos.ts';
+import { ETAPAS_FLUXO, alertasPedido, etapaNoFluxo, numeroPedido, pedidosPorEtapa, podeMover, proximaEtapa, situacaoFinanceira } from '../../domain/pedidos.ts';
 import { hojeISO } from '../../lib/dates.ts';
 import { combinaBusca, formatBRL, formatData } from '../../lib/format.ts';
 import { Botao, Busca, Chave, Pagina, Selo, Vazio, avisar } from '../../ui/index.ts';
@@ -78,8 +79,8 @@ export function Pedidos(_props: TelaProps) {
   const soltar = (etapa: EtapaPedido, id: string) => {
     setAlvo(null);
     const p = db.get('pedidos', id);
-    if (!p || p.etapa === etapa) return;
-    if (ETAPAS_FLUXO.indexOf(etapa) < ETAPAS_FLUXO.indexOf(p.etapa)) return avisar('O pedido só avança. Para desistir, cancele o pedido.', 'atencao');
+    if (!p || etapaNoFluxo(p.etapa) === etapa) return;
+    if (!podeMover(p.etapa, etapa)) return avisar('O pedido só avança. Para desistir, cancele o pedido.', 'atencao');
     setMover({ pedido: p, destino: etapa });
   };
   const vazio = db.all('pedidos').length === 0;

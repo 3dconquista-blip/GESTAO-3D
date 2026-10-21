@@ -33,7 +33,7 @@ export function ConfigCanais() {
   };
 
   return (
-    <Pagina titulo="Canais de venda" subtitulo="Comissão sobre o preço de etiqueta. Canais ativos aparecem no simulador." voltarPara="/config" largura="estreita">
+    <Pagina titulo="Canais de venda" subtitulo="Comissão sobre o preço de etiqueta. Canais ativos aparecem nos preços sugeridos do produto." voltarPara="/config/custos" largura="estreita">
       {canais.map((c) => (
         <Cartao key={c.id} titulo={c.nome} acoes={<Chave checked={c.ativo} onChange={(v) => mudar(c.id, { ativo: v })}>{c.ativo ? 'Ativo' : 'Desligado'}</Chave>}>
           <div class="campos-3">

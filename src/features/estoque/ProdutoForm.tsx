@@ -1,4 +1,6 @@
-// Cadastro e edição de produto (7.1) com ficha técnica, custo e preço (6.3, 6.4).
+// Cadastro e edição de produto (7.1), enxuto (decisão 86): nome, ficha (peças, tempo, tipo de filamento e gramas)
+// e preço. O produto não tem cor: a cor é escolhida em cada produção (decisão 85). O resto (categoria, mínimo,
+// margem, foto, componentes, mão de obra, licença, composição do custo e tabela por canal) fica em "Mais detalhes".
 import { useState } from 'preact/hooks';
 import { navegar, type TelaProps } from '../../app/router.ts';
 import { db } from '../../data/db.ts';
@@ -6,16 +8,15 @@ import { useDb } from '../../data/hooks.ts';
 import { materiaisAtivos } from '../../data/selectors.ts';
 import type { Cents, LicencaVenda } from '../../data/types.ts';
 import type { FichaTecnica } from '../../domain/pricing.ts';
-import { custosComMargem, etiquetaSugerida } from '../../domain/pricing.ts';
-import { formatBRL, formatPct } from '../../lib/format.ts';
+import { custosComMargem, etiquetaSugerida, simular } from '../../domain/pricing.ts';
+import { formatBRL, formatPct, formatReais } from '../../lib/format.ts';
+import { round4 } from '../../lib/money.ts';
 import { salvarProduto } from '../../services/produtos.ts';
-import { Aviso, Botao, Campo, Cartao, Dinheiro, Escolha, Foto, Grade, Numero, Pagina, Segmentado, Texto, Vazio, avisar } from '../../ui/index.ts';
-import { ComposicaoCustoView, FichaTecnicaEditor, PrecosSugeridos, TabelaSimulador, fichaVazia, useComposicao } from '../precos/componentes.tsx';
+import { Aviso, Botao, Campo, Cartao, Dinheiro, Escolha, Foto, MaisDetalhes, Numero, Pagina, Segmentado, Texto, Vazio, avisar } from '../../ui/index.ts';
+import { ComponentesEditor, ComposicaoCustoView, FichaTecnicaEditor, PrecosSugeridos, TabelaSimulador, fichaVazia, useComposicao } from '../precos/componentes.tsx';
 
 interface Dados {
   nome: string;
-  modelo: string;
-  cor: string;
   categoria: string;
   fotoDataUrl?: string;
   estoqueMinimo: number;
@@ -27,14 +28,21 @@ interface Dados {
   margemPct: number | null;
 }
 
+/** Categoria sugerida para um produto novo: a do último cadastrado (ou a primeira da lista). */
+function categoriaSugerida(): string {
+  const ultimo = db
+    .all('produtos')
+    .filter((p) => !p.excluido)
+    .sort((a, b) => b.criadoEm.localeCompare(a.criadoEm))[0];
+  return ultimo?.categoria || db.config.categorias[0] || 'Outro';
+}
+
 export function ProdutoForm({ params }: TelaProps) {
   useDb();
   const atual = params.id ? db.get('produtos', params.id) : undefined;
   const [d, setD] = useState<Dados>(() => ({
     nome: atual?.nome ?? '',
-    modelo: atual?.modelo ?? '',
-    cor: atual?.cor ?? '',
-    categoria: atual?.categoria ?? db.config.categorias[0] ?? 'Outro',
+    categoria: atual?.categoria ?? categoriaSugerida(),
     fotoDataUrl: atual?.fotoDataUrl,
     estoqueMinimo: atual?.estoqueMinimo ?? 0,
     origemModelo: atual?.origemModelo ?? 'proprio',
@@ -44,8 +52,12 @@ export function ProdutoForm({ params }: TelaProps) {
     margemPct: atual?.margemPct ?? null,
   }));
   const [ficha, setFicha] = useState<FichaTecnica>(() =>
-    atual ? { mesas: atual.mesas.map((m) => ({ ...m, filamentos: m.filamentos.map((f) => ({ ...f })) })), componentes: atual.componentes.map((c) => ({ ...c })), maoDeObraMin: atual.maoDeObraMin } : fichaVazia(),
+    atual
+      ? { mesas: atual.mesas.map((m) => ({ ...m, filamentos: m.filamentos.map((f) => ({ ...f })) })), componentes: atual.componentes.map((c) => ({ ...c })), maoDeObraMin: atual.maoDeObraMin }
+      : fichaVazia('produto'),
   );
+  // Peça multicolor ou em várias mesas: mostra os botões de mais mesas/cores na ficha.
+  const [fichaAvancada, setFichaAvancada] = useState(() => !!atual && (atual.mesas.length > 1 || atual.mesas.some((m) => m.filamentos.length > 1)));
   const comp = useComposicao(ficha);
 
   if ((params.id && !atual) || atual?.excluido) {
@@ -60,16 +72,17 @@ export function ProdutoForm({ params }: TelaProps) {
   const semImpressora = db.all('impressoras').filter((i) => i.ativa).length === 0;
   const semFilamento = materiaisAtivos('filamento').length === 0;
   const margemPadrao = db.config.custos.margemDesejadaPct;
-  const sugerida = comp.total > 0 ? etiquetaSugerida(comp.total, db.config.canais, custosComMargem(db.config.custos, d.margemPct)) : null;
+  const custos = custosComMargem(db.config.custos, d.margemPct);
+  const sugerida = comp.total > 0 ? etiquetaSugerida(comp.total, db.config.canais, custos) : null;
   const precoUsado = d.precoEtiquetaCentavos ?? sugerida;
+  const sim = precoUsado && comp.total > 0 ? simular(precoUsado, round4(comp.total), db.config.canais, custos) : null;
+  const abaixoMinima = sim ? sim.linhas.filter((l) => l.abaixoMinima && !l.prejuizo).map((l) => l.canal.nome) : [];
 
   const salvar = () => {
     try {
       const p = salvarProduto({
         id: atual?.id,
         nome: d.nome,
-        modelo: d.modelo || d.nome,
-        cor: d.cor,
         categoria: d.categoria,
         fotoDataUrl: d.fotoDataUrl,
         estoqueMinimo: d.estoqueMinimo,
@@ -89,13 +102,22 @@ export function ProdutoForm({ params }: TelaProps) {
     }
   };
 
+  const resumoDetalhes = [
+    d.categoria,
+    d.estoqueMinimo ? `mínimo ${d.estoqueMinimo}` : '',
+    d.margemPct != null ? `margem ${formatPct(d.margemPct, 0)}` : '',
+    ficha.componentes.length ? `${ficha.componentes.length} componente(s)` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
   return (
-    <Pagina titulo={atual ? `Editar ${atual.nome}` : 'Novo produto'} subtitulo={atual?.codigo} voltarPara={atual ? `/estoque/produtos/${atual.id}` : '/estoque/produtos'} largura="larga">
+    <Pagina titulo={atual ? `Editar ${atual.nome}` : 'Novo produto'} subtitulo={atual?.codigo} voltarPara={atual ? `/estoque/produtos/${atual.id}` : '/estoque/produtos'} largura="estreita">
       {(semImpressora || semFilamento) && (
         <Aviso tom="atencao" titulo="Falta cadastro para calcular o custo">
           {semImpressora && (
             <div>
-              Nenhuma impressora ativa — <a href="#/config/impressoras/novo">cadastrar impressora</a>.
+              Nenhuma impressora — <a href="#/config/impressoras/novo">cadastrar impressora</a>.
             </div>
           )}
           {semFilamento && (
@@ -105,104 +127,113 @@ export function ProdutoForm({ params }: TelaProps) {
           )}
         </Aviso>
       )}
-      <Grade colunas={2}>
-        <div class="pilha pilha-m">
-          <Cartao titulo="Dados">
-            <div class="formulario">
-              <Campo rotulo="Nome" obrigatorio>
-                <Texto value={d.nome} onInput={(v) => mudar({ nome: v })} placeholder="Ex.: Chaveiro Kettlebell Preto" autoFocus={!atual} />
-              </Campo>
-              <div class="campos-2">
-                <Campo rotulo="Modelo" dica="Agrupa as cores do mesmo produto">
-                  <Texto value={d.modelo} onInput={(v) => mudar({ modelo: v })} placeholder="Ex.: Chaveiro Kettlebell" />
-                </Campo>
-                <Campo rotulo="Cor">
-                  <Texto value={d.cor} onInput={(v) => mudar({ cor: v })} placeholder="Ex.: Preto" />
-                </Campo>
-                <Campo rotulo="Categoria">
-                  <Escolha value={d.categoria} onChange={(v) => mudar({ categoria: v })} opcoes={db.config.categorias.map((c) => ({ valor: c, rotulo: c }))} />
-                </Campo>
-                <Campo rotulo="Estoque mínimo em Casa" dica="Abaixo disso aparece em &quot;O que imprimir&quot;">
-                  <Numero value={d.estoqueMinimo} onChange={(v) => mudar({ estoqueMinimo: Math.max(0, v ?? 0) })} decimais={0} min={0} stepper />
-                </Campo>
-              </div>
-              <Campo rotulo="Foto (opcional)">
-                <Foto value={d.fotoDataUrl} onChange={(v) => mudar({ fotoDataUrl: v })} />
-              </Campo>
-              <Campo rotulo="Origem do modelo">
-                <Segmentado
-                  value={d.origemModelo}
-                  onChange={(v) => mudar({ origemModelo: v })}
-                  opcoes={[
-                    { valor: 'proprio', rotulo: 'Próprio' },
-                    { valor: 'terceiro', rotulo: 'De terceiro' },
-                  ]}
-                />
-              </Campo>
-              {d.origemModelo === 'terceiro' && (
-                <div class="campos-2">
-                  <Campo rotulo="Link do modelo">
-                    <Texto type="url" inputMode="url" value={d.linkModelo} onInput={(v) => mudar({ linkModelo: v })} placeholder="https://makerworld.com/..." />
-                  </Campo>
-                  <Campo rotulo="Licença permite venda?">
-                    <Segmentado
-                      value={d.licencaVenda}
-                      onChange={(v) => mudar({ licencaVenda: v })}
-                      opcoes={[
-                        { valor: 'sim', rotulo: 'Sim' },
-                        { valor: 'nao', rotulo: 'Não' },
-                        { valor: 'nao_sei', rotulo: 'Não sei' },
-                      ]}
-                    />
-                  </Campo>
-                </div>
-              )}
-              {d.origemModelo === 'terceiro' && d.licencaVenda !== 'sim' && (
-                <Aviso tom="atencao">Confira se a licença do modelo permite vender as peças antes de colocar à venda.</Aviso>
-              )}
+
+      <Cartao>
+        <div class="formulario">
+          <Campo rotulo="Nome" obrigatorio>
+            <Texto value={d.nome} onInput={(v) => mudar({ nome: v })} placeholder="Ex.: Chaveiro Kettlebell (sem a cor)" autoFocus={!atual} />
+          </Campo>
+          <FichaTecnicaEditor valor={ficha} onChange={setFicha} modo="produto" mostrarExtras={fichaAvancada} />
+
+          <div class="prod-preco">
+            <div class="prod-custo">
+              <span>Custo por peça</span>
+              <strong>{comp.total > 0 ? formatReais(comp.total) : '—'}</strong>
             </div>
-          </Cartao>
-          <Cartao titulo="Ficha técnica">
-            <FichaTecnicaEditor valor={ficha} onChange={setFicha} />
-          </Cartao>
+            {comp.avisos.map((a) => (
+              <Aviso key={a} tom="atencao">
+                {a}
+              </Aviso>
+            ))}
+            {sugerida != null && (
+              <div class="precos-etiqueta">
+                <span>
+                  Preço sugerido: <strong>{formatBRL(sugerida)}</strong>
+                </span>
+                {d.precoEtiquetaCentavos !== sugerida && (
+                  <Botao pequeno variante="secundario" onClick={() => mudar({ precoEtiquetaCentavos: sugerida })}>
+                    Usar
+                  </Botao>
+                )}
+              </div>
+            )}
+            <Campo rotulo="Preço de etiqueta" dica={d.precoEtiquetaCentavos == null && sugerida ? `Vazio = o sugerido (${formatBRL(sugerida)})` : undefined}>
+              <Dinheiro value={d.precoEtiquetaCentavos} onChange={(v) => mudar({ precoEtiquetaCentavos: v })} placeholder={sugerida ? (sugerida / 100).toFixed(2).replace('.', ',') : '0,00'} />
+            </Campo>
+            {sim && sim.perdeEm.length > 0 && <Aviso tom="ruim">Com este preço você perde dinheiro em: {sim.perdeEm.join(', ')}.</Aviso>}
+            {sim && sim.perdeEm.length === 0 && abaixoMinima.length > 0 && (
+              <Aviso tom="atencao">Margem abaixo da mínima em: {abaixoMinima.join(', ')}.</Aviso>
+            )}
+          </div>
+        </div>
+      </Cartao>
+
+      <MaisDetalhes resumo={resumoDetalhes}>
+        <div class="campos-2">
+          <Campo rotulo="Categoria">
+            <Escolha value={d.categoria} onChange={(v) => mudar({ categoria: v })} opcoes={db.config.categorias.map((c) => ({ valor: c, rotulo: c }))} />
+          </Campo>
+          <Campo rotulo="Estoque mínimo em Casa" dica="Abaixo disso aparece em &quot;O que imprimir&quot;">
+            <Numero value={d.estoqueMinimo} onChange={(v) => mudar({ estoqueMinimo: Math.max(0, v ?? 0) })} decimais={0} min={0} stepper />
+          </Campo>
+          <Campo rotulo="Margem de lucro deste produto" dica={d.margemPct == null ? `Vazio = a padrão (${formatPct(margemPadrao, 0)})` : 'Os preços sugeridos usam esta margem'}>
+            <Numero value={d.margemPct} onChange={(v) => mudar({ margemPct: v })} min={0} max={99} decimais={1} sufixo="%" placeholder={`${margemPadrao} (padrão)`} />
+          </Campo>
+          <Campo rotulo="Foto">
+            <Foto value={d.fotoDataUrl} onChange={(v) => mudar({ fotoDataUrl: v })} />
+          </Campo>
         </div>
 
-        <div class="pilha pilha-m">
-          <Cartao titulo="Custo por peça">
+        {!fichaAvancada && (
+          <div>
+            <Botao pequeno variante="fantasma" icone="camadas" onClick={() => setFichaAvancada(true)}>
+              Peça multicolor ou em mais de uma mesa
+            </Botao>
+          </div>
+        )}
+        <ComponentesEditor valor={ficha} onChange={setFicha} />
+
+        <Campo rotulo="Origem do modelo">
+          <Segmentado
+            value={d.origemModelo}
+            onChange={(v) => mudar({ origemModelo: v })}
+            opcoes={[
+              { valor: 'proprio', rotulo: 'Próprio' },
+              { valor: 'terceiro', rotulo: 'De terceiro' },
+            ]}
+          />
+        </Campo>
+        {d.origemModelo === 'terceiro' && (
+          <div class="campos-2">
+            <Campo rotulo="Link do modelo">
+              <Texto type="url" inputMode="url" value={d.linkModelo} onInput={(v) => mudar({ linkModelo: v })} placeholder="https://makerworld.com/..." />
+            </Campo>
+            <Campo rotulo="Licença permite venda?">
+              <Segmentado
+                value={d.licencaVenda}
+                onChange={(v) => mudar({ licencaVenda: v })}
+                opcoes={[
+                  { valor: 'sim', rotulo: 'Sim' },
+                  { valor: 'nao', rotulo: 'Não' },
+                  { valor: 'nao_sei', rotulo: 'Não sei' },
+                ]}
+              />
+            </Campo>
+          </div>
+        )}
+
+        {comp.total > 0 && (
+          <>
+            <strong>Composição do custo</strong>
             <ComposicaoCustoView composicao={comp} />
-          </Cartao>
-          <Cartao titulo="Preço">
-            <div class="pilha pilha-m">
-              <Campo
-                rotulo="Margem de lucro deste produto"
-                dica={
-                  d.margemPct == null
-                    ? `Vazio = margem padrão (${formatPct(margemPadrao, 0)}, em Configurações > Custos e preços)`
-                    : 'Os preços sugeridos e a cor da margem usam esta margem'
-                }
-              >
-                <Numero value={d.margemPct} onChange={(v) => mudar({ margemPct: v })} min={0} max={99} decimais={1} sufixo="%" placeholder={`${margemPadrao} (padrão)`} />
-              </Campo>
-              {comp.total > 0 ? (
-                <PrecosSugeridos custoUnit={comp.total} onUsar={(c) => mudar({ precoEtiquetaCentavos: c })} margemPct={d.margemPct} />
-              ) : (
-                <p class="muted">Preencha a ficha técnica para ver o preço sugerido.</p>
-              )}
-              <Campo
-                rotulo="Preço de etiqueta"
-                dica={d.precoEtiquetaCentavos == null && sugerida ? `Vazio = etiqueta sugerida (${formatBRL(sugerida)})` : 'Um preço por produto vale para todos os canais'}
-              >
-                <Dinheiro value={d.precoEtiquetaCentavos} onChange={(v) => mudar({ precoEtiquetaCentavos: v })} placeholder={sugerida ? (sugerida / 100).toFixed(2).replace('.', ',') : '0,00'} />
-              </Campo>
-              {precoUsado != null && precoUsado > 0 && comp.total > 0 && <TabelaSimulador custoUnit={comp.total} precoCentavos={precoUsado} margemPct={d.margemPct} />}
-            </div>
-          </Cartao>
-        </div>
-      </Grade>
+            <strong>Preço por canal</strong>
+            <PrecosSugeridos custoUnit={comp.total} margemPct={d.margemPct} />
+            {precoUsado != null && precoUsado > 0 && <TabelaSimulador custoUnit={comp.total} precoCentavos={precoUsado} margemPct={d.margemPct} />}
+          </>
+        )}
+      </MaisDetalhes>
+
       <div class="barra-acoes-fixa">
-        <Botao variante="fantasma" href={atual ? `/estoque/produtos/${atual.id}` : '/estoque/produtos'}>
-          Cancelar
-        </Botao>
         <Botao variante="primario" icone="check" onClick={salvar}>
           Salvar produto
         </Botao>

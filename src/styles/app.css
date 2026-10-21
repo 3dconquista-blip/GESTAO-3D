@@ -369,6 +369,9 @@ a.item-lista:hover, button.item-lista:hover { background: var(--superficie-2); }
 .toast { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-radius: 12px; background: var(--marinho); color: #fff; box-shadow: var(--sombra-alta); font-weight: 600; font-size: 0.92rem; }
 .toast-ok .icone { color: #7ee2a1; }
 .toast-ruim { background: var(--ruim); }
+.toast-texto { flex: 1; min-width: 0; }
+.toast-acao { pointer-events: auto; border: 1px solid rgba(255,255,255,0.45); background: transparent; color: #fff; font: inherit; font-weight: 700; border-radius: 8px; padding: 6px 10px; cursor: pointer; min-height: 36px; }
+.toast-acao:hover { background: rgba(255,255,255,0.12); }
 .toast-atencao .icone { color: #ffd166; }
 @media (min-width: 960px) { .toasts { bottom: 24px; left: auto; right: 24px; transform: none; } }
 
@@ -402,3 +405,13 @@ a.item-lista:hover, button.item-lista:hover { background: var(--superficie-2); }
   .cartao { box-shadow: none; border: 0; padding: 0; }
   .pagina { max-width: none; padding: 0; }
 }
+
+/* Bloco recolhido "Mais detalhes" (ui/layout.tsx) */
+.mais-detalhes { border: 1px solid var(--borda); border-radius: var(--raio-p); background: var(--superficie); }
+.mais-detalhes > summary { list-style: none; display: flex; align-items: center; gap: 8px; min-height: var(--toque); padding: 8px 12px; cursor: pointer; color: var(--principal); font-weight: 650; }
+.mais-detalhes > summary::-webkit-details-marker { display: none; }
+.mais-detalhes-titulo { flex: 0 0 auto; }
+.mais-detalhes-resumo { flex: 1; min-width: 0; color: var(--texto-3); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mais-detalhes-seta { margin-left: auto; transition: transform 0.15s; flex: 0 0 auto; }
+.mais-detalhes[open] > summary .mais-detalhes-seta { transform: rotate(180deg); }
+.mais-detalhes-corpo { padding: 4px 12px 14px; display: flex; flex-direction: column; gap: 12px; }

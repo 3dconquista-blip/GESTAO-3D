@@ -38,7 +38,7 @@ export function VendasLista(_props: TelaProps) {
     { id: 'cliente', rotulo: 'Cliente', render: (v) => nomeCliente(v.clienteId), esconderNoCelular: true },
     { id: 'forma', rotulo: 'Pagamento', render: (v) => `${ROTULO_FORMA[v.formaPagamento]} · ${ROTULO_CANAL_VENDA[v.canal]}` },
     { id: 'total', rotulo: 'Total', alinhar: 'dir', render: (v) => (v.cancelada ? <Selo tom="ruim">Cancelada</Selo> : <strong>{formatBRL(v.totalCentavos)}</strong>) },
-    { id: 'lucro', rotulo: 'Lucro', alinhar: 'dir', render: (v) => (v.cancelada ? '—' : formatBRL(v.lucroCentavos)) },
+    { id: 'lucro', rotulo: 'Lucro', alinhar: 'dir', render: (v) => (v.cancelada ? '—' : formatBRL(v.lucroCentavos)), esconderNoCelular: true },
   ];
 
   return (

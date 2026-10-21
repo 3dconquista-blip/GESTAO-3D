@@ -1,4 +1,5 @@
-// Cadastro e edição do parceiro (8.1).
+// Cadastro e edição do parceiro (8.1), enxuto (decisão 96): nome, WhatsApp, endereço, bairro, divisão e acerto.
+// Tipo, responsável, mapa, quem recebe, início, termo e observações ficam em "Mais detalhes".
 import { useState } from 'preact/hooks';
 import { navegar, type TelaProps } from '../../app/router.ts';
 import { db } from '../../data/db.ts';
@@ -8,7 +9,7 @@ import type { QuemRecebe, TipoParceiro } from '../../data/types.ts';
 import { ROTULO_QUEM_RECEBE, formatarTelefone, rotuloDivisao } from '../../domain/termo.ts';
 import { hojeISO } from '../../lib/dates.ts';
 import { salvarParceiro, previaMudancaDivisao, type DadosParceiro } from '../../services/parceiros.ts';
-import { AreaTexto, Aviso, Botao, Campo, Cartao, Chave, Data, Escolha, Foto, Numero, Pagina, Segmentado, Texto, avisar, confirmar } from '../../ui/index.ts';
+import { AreaTexto, Aviso, Botao, Campo, Cartao, Chave, Data, Escolha, Foto, MaisDetalhes, Numero, Pagina, Segmentado, Texto, avisar, confirmar } from '../../ui/index.ts';
 import { ParceiroNaoEncontrado } from './comum.tsx';
 
 export function ParceiroForm({ params }: TelaProps) {
@@ -36,44 +37,40 @@ export function ParceiroForm({ params }: TelaProps) {
     try {
       const p = salvarParceiro({ ...d, id: atual?.id });
       avisar(atual ? 'Parceiro salvo' : 'Parceiro cadastrado');
-      navegar(atual ? `/parceiros/${p.id}` : `/parceiros/${p.id}/mix`, { substituir: true });
+      navegar(atual ? `/parceiros/${p.id}` : `/parceiros/${p.id}/levar`, { substituir: true });
     } catch (e) {
       avisar(e instanceof Error ? e.message : String(e), 'ruim');
     }
   };
 
+  const resumoDetalhes =
+    [
+      ROTULO_TIPO_PARCEIRO[d.tipo ?? 'academia'],
+      d.responsavel?.trim() ? `responsável ${d.responsavel.trim()}` : '',
+      d.quemRecebe && d.quemRecebe !== 'parceiro' ? ROTULO_QUEM_RECEBE[d.quemRecebe].toLowerCase() : '',
+      d.termoAssinado ? 'termo assinado' : '',
+    ]
+      .filter(Boolean)
+      .join(' · ') || undefined;
+
   return (
-    <Pagina titulo={atual ? `Editar ${atual.nome}` : 'Novo parceiro'} voltarPara={atual ? `/parceiros/${atual.id}` : '/parceiros/lista'} largura="estreita">
-      <Cartao titulo="Estabelecimento">
+    <Pagina titulo={atual ? `Editar ${atual.nome}` : 'Novo parceiro'} voltarPara={atual ? `/parceiros/${atual.id}` : '/parceiros'} largura="estreita">
+      <Cartao>
         <div class="formulario">
           <Campo rotulo="Nome do estabelecimento" obrigatorio>
             <Texto value={d.nome} onInput={(v) => mudar({ nome: v })} placeholder="Ex.: Academia Alfa" autoFocus={!atual} />
           </Campo>
+          <Campo rotulo="WhatsApp" dica="Para mandar o comprovante do acerto">
+            <Texto type="tel" inputMode="tel" value={d.whatsapp} onInput={(v) => mudar({ whatsapp: v })} placeholder="(71) 99999-8888" />
+          </Campo>
           <div class="campos-2">
-            <Campo rotulo="Tipo">
-              <Escolha value={d.tipo} onChange={(v) => mudar({ tipo: v as TipoParceiro })} opcoes={Object.entries(ROTULO_TIPO_PARCEIRO).map(([v, r]) => ({ valor: v, rotulo: r }))} />
-            </Campo>
-            <Campo rotulo="Responsável">
-              <Texto value={d.responsavel} onInput={(v) => mudar({ responsavel: v })} placeholder="Quem cuida do expositor" />
-            </Campo>
-            <Campo rotulo="WhatsApp" dica="Precisa ter WhatsApp para receber o comprovante">
-              <Texto type="tel" inputMode="tel" value={d.whatsapp} onInput={(v) => mudar({ whatsapp: v })} placeholder="(71) 99999-8888" />
+            <Campo rotulo="Endereço">
+              <Texto value={d.endereco} onInput={(v) => mudar({ endereco: v })} />
             </Campo>
             <Campo rotulo="Bairro">
               <Texto value={d.bairro} onInput={(v) => mudar({ bairro: v })} />
             </Campo>
           </div>
-          <Campo rotulo="Endereço">
-            <Texto value={d.endereco} onInput={(v) => mudar({ endereco: v })} />
-          </Campo>
-          <Campo rotulo="Link do mapa (opcional)" dica="Sem link, o botão do mapa busca pelo endereço">
-            <Texto type="url" inputMode="url" value={d.linkMapa} onInput={(v) => mudar({ linkMapa: v })} placeholder="https://maps.app.goo.gl/..." />
-          </Campo>
-        </div>
-      </Cartao>
-
-      <Cartao titulo="Acordo">
-        <div class="formulario">
           <Campo rotulo="Divisão do que vender">
             <Segmentado
               value={personalizada ? -1 : pct}
@@ -81,7 +78,7 @@ export function ParceiroForm({ params }: TelaProps) {
                 setPersonalizada(v === -1);
                 if (v !== -1) mudar({ pctParceiro: v });
               }}
-              opcoes={[...cfg.divisoes.map((x) => ({ valor: x, rotulo: rotuloDivisao(x) })), { valor: -1, rotulo: 'Personalizada' }]}
+              opcoes={[...cfg.divisoes.map((x) => ({ valor: x, rotulo: rotuloDivisao(x) })), { valor: -1, rotulo: 'Outra' }]}
             />
           </Campo>
           {personalizada && (
@@ -92,7 +89,7 @@ export function ParceiroForm({ params }: TelaProps) {
           {mudouDivisao && (
             <Aviso tom="atencao">A nova divisão vale a partir do próximo acerto. O acerto em andamento usa a divisão de quando o ciclo começou. Lembre de reimprimir o termo.</Aviso>
           )}
-          <Campo rotulo="Frequência do acerto">
+          <Campo rotulo="Acerto">
             <Segmentado
               value={outraFreq ? 0 : (d.frequenciaDias as number)}
               onChange={(v) => {
@@ -111,46 +108,55 @@ export function ParceiroForm({ params }: TelaProps) {
               <Numero value={d.frequenciaDias} onChange={(v) => mudar({ frequenciaDias: v ?? 15 })} decimais={0} min={1} sufixo="dias" stepper />
             </Campo>
           )}
-          <Campo rotulo="Quem recebe dos clientes">
-            <Segmentado
-              value={d.quemRecebe ?? 'parceiro'}
-              onChange={(v) => mudar({ quemRecebe: v as QuemRecebe })}
-              opcoes={(Object.keys(ROTULO_QUEM_RECEBE) as QuemRecebe[]).map((k) => ({ valor: k, rotulo: ROTULO_QUEM_RECEBE[k] }))}
-            />
-          </Campo>
-          <Campo rotulo="Data de início">
-            <Data value={d.dataInicio} onInput={(v) => mudar({ dataInicio: v })} />
-          </Campo>
         </div>
       </Cartao>
 
-      <Cartao titulo="Termo e observações">
-        <div class="formulario">
-          <Chave checked={!!d.termoAssinado} onChange={(v) => mudar({ termoAssinado: v, termoData: v ? (d.termoData ?? hojeISO()) : d.termoData })}>
-            Termo de consignação assinado
-          </Chave>
-          {d.termoAssinado && (
-            <div class="campos-2">
-              <Campo rotulo="Data da assinatura">
-                <Data value={d.termoData} onInput={(v) => mudar({ termoData: v })} />
-              </Campo>
-              <Campo rotulo="Foto do termo (opcional)">
-                <Foto value={d.termoFotoDataUrl} onChange={(v) => mudar({ termoFotoDataUrl: v })} />
-              </Campo>
-            </div>
-          )}
-          <Campo rotulo="Nº da nota de remessa (opcional)">
-            <Texto value={d.notaRemessa} onInput={(v) => mudar({ notaRemessa: v })} />
+      <MaisDetalhes titulo="Mais dados e termo" resumo={resumoDetalhes}>
+        <div class="campos-2">
+          <Campo rotulo="Tipo">
+            <Escolha value={d.tipo} onChange={(v) => mudar({ tipo: v as TipoParceiro })} opcoes={Object.entries(ROTULO_TIPO_PARCEIRO).map(([v, r]) => ({ valor: v, rotulo: r }))} />
           </Campo>
-          <Campo rotulo="Observações">
-            <AreaTexto value={d.observacoes} onInput={(v) => mudar({ observacoes: v })} />
+          <Campo rotulo="Responsável">
+            <Texto value={d.responsavel} onInput={(v) => mudar({ responsavel: v })} placeholder="Quem cuida do expositor" />
           </Campo>
         </div>
-      </Cartao>
+        <Campo rotulo="Link do mapa" dica="Sem link, o botão do mapa busca pelo endereço">
+          <Texto type="url" inputMode="url" value={d.linkMapa} onInput={(v) => mudar({ linkMapa: v })} placeholder="https://maps.app.goo.gl/..." />
+        </Campo>
+        <Campo rotulo="Quem recebe dos clientes">
+          <Segmentado
+            value={d.quemRecebe ?? 'parceiro'}
+            onChange={(v) => mudar({ quemRecebe: v as QuemRecebe })}
+            opcoes={(Object.keys(ROTULO_QUEM_RECEBE) as QuemRecebe[]).map((k) => ({ valor: k, rotulo: ROTULO_QUEM_RECEBE[k] }))}
+          />
+        </Campo>
+        <Campo rotulo="Data de início">
+          <Data value={d.dataInicio} onInput={(v) => mudar({ dataInicio: v })} />
+        </Campo>
+        <Chave checked={!!d.termoAssinado} onChange={(v) => mudar({ termoAssinado: v, termoData: v ? (d.termoData ?? hojeISO()) : d.termoData })}>
+          Termo de consignação assinado
+        </Chave>
+        {d.termoAssinado && (
+          <div class="campos-2">
+            <Campo rotulo="Data da assinatura">
+              <Data value={d.termoData} onInput={(v) => mudar({ termoData: v })} />
+            </Campo>
+            <Campo rotulo="Foto do termo">
+              <Foto value={d.termoFotoDataUrl} onChange={(v) => mudar({ termoFotoDataUrl: v })} />
+            </Campo>
+          </div>
+        )}
+        <Campo rotulo="Nº da nota de remessa">
+          <Texto value={d.notaRemessa} onInput={(v) => mudar({ notaRemessa: v })} />
+        </Campo>
+        <Campo rotulo="Observações">
+          <AreaTexto value={d.observacoes} onInput={(v) => mudar({ observacoes: v })} />
+        </Campo>
+      </MaisDetalhes>
 
       <div class="barra-acoes-fixa">
         <Botao variante="primario" icone="check" onClick={salvar}>
-          {atual ? 'Salvar' : 'Cadastrar e montar o mix'}
+          {atual ? 'Salvar' : 'Cadastrar e levar peças'}
         </Botao>
       </div>
     </Pagina>

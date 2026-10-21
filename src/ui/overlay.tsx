@@ -116,12 +116,14 @@ interface Toast {
   id: number;
   texto: string;
   tom: 'ok' | 'ruim' | 'info' | 'atencao';
+  /** Botão no aviso (ex.: "Desfazer"). O aviso com ação fica mais tempo na tela. */
+  acao?: { rotulo: string; onClick: () => void };
 }
 let seq = 0;
 let ouvinteToast: ((t: Toast) => void) | null = null;
 
-export function avisar(texto: string, tom: Toast['tom'] = 'ok') {
-  const t = { id: ++seq, texto, tom };
+export function avisar(texto: string, tom: Toast['tom'] = 'ok', acao?: Toast['acao']) {
+  const t: Toast = { id: ++seq, texto, tom, acao };
   if (ouvinteToast) ouvinteToast(t);
   else console.log(texto);
 }
@@ -131,7 +133,7 @@ function HostToasts() {
   useEffect(() => {
     ouvinteToast = (t) => {
       setLista((l) => [...l, t]);
-      setTimeout(() => setLista((l) => l.filter((x) => x.id !== t.id)), t.tom === 'ruim' ? 6000 : 3200);
+      setTimeout(() => setLista((l) => l.filter((x) => x.id !== t.id)), t.acao ? 8000 : t.tom === 'ruim' ? 6000 : 3200);
     };
     return () => {
       ouvinteToast = null;
@@ -142,7 +144,19 @@ function HostToasts() {
       {lista.map((t) => (
         <div key={t.id} class={`toast toast-${t.tom}`}>
           <Icon nome={t.tom === 'ok' ? 'check' : t.tom === 'info' ? 'info' : 'alerta'} tamanho={18} />
-          {t.texto}
+          <span class="toast-texto">{t.texto}</span>
+          {t.acao && (
+            <button
+              type="button"
+              class="toast-acao"
+              onClick={() => {
+                t.acao?.onClick();
+                setLista((l) => l.filter((x) => x.id !== t.id));
+              }}
+            >
+              {t.acao.rotulo}
+            </button>
+          )}
         </div>
       ))}
     </div>

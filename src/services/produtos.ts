@@ -2,6 +2,7 @@
 // Toda gravação passa por db.tx (atômica). Arquivar esconde e permite reativar; excluir marca o produto como
 // excluído (some do app de vez), mas o registro fica para o histórico de movimentações, vendas e acertos.
 // O preço de etiqueta nunca muda sozinho: mudar custos só gera alerta de margem (6.3).
+// O produto não tem cor (decisão 85): a ficha guarda o tipo de filamento e a cor é escolhida em cada produção.
 import type { Tx } from '../data/db.ts';
 import { db } from '../data/db.ts';
 import { contextoCusto } from '../data/selectors.ts';
@@ -12,6 +13,7 @@ import { normalizarBusca } from '../lib/format.ts';
 import { novoId } from '../lib/id.ts';
 import { arredondarPreco, round4, toReais } from '../lib/money.ts';
 import { numeroPedido } from '../domain/pedidos.ts';
+import { custoKgDoTipo, TIPO_PADRAO, TIPOS_FILAMENTO } from '../domain/filamento.ts';
 import type { ComposicaoCusto, ContextoCusto, Simulacao, StatusMargem } from '../domain/pricing.ts';
 import {
   canaisAtivos,
@@ -35,8 +37,9 @@ export interface MesaEntrada {
   pecasPorMesa: number;
   /** "Tempo da mesa" em minutos. */
   tempoMin: number;
-  impressoraId: ID;
-  /** Um ou mais filamentos, com as gramas da mesa inteira. */
+  /** Vazio: a primeira impressora ativa (com uma só impressora o formulário nem pergunta). */
+  impressoraId?: ID;
+  /** Um ou mais filamentos (tipo + gramas da mesa inteira); a cor é escolhida na produção. */
   filamentos: MesaFilamento[];
 }
 
@@ -45,10 +48,8 @@ export interface DadosProduto {
   /** Produto existente: edita. Id inexistente: cria com esse id (útil para dados de exemplo). */
   id?: ID;
   nome: string;
-  /** Agrupa as cores do mesmo produto. Padrão: o nome. */
-  modelo?: string;
-  cor?: string;
-  categoria: string;
+  /** Opcional: sem ela, vale a do último produto cadastrado. */
+  categoria?: string;
   fotoDataUrl?: string;
   /** Padrão na criação: a etiqueta sugerida (maior preço sugerido entre os canais ativos). */
   precoEtiquetaCentavos?: Cents;
@@ -103,7 +104,6 @@ export interface PreviaCusto {
 }
 
 const LICENCAS: LicencaVenda[] = ['sim', 'nao', 'nao_sei'];
-const LETRA_OU_NUMERO = /[\p{L}\p{N}]/u;
 
 function texto(v: string | null | undefined): string {
   return (v ?? '').trim();
@@ -124,6 +124,7 @@ function contextoTx(t: Tx): ContextoCusto {
     custos: db.config.custos,
     impressora: (id) => t.get('impressoras', id),
     material: (id) => t.get('materiais', id),
+    custoKgTipo: (tipo) => custoKgDoTipo(t.all('materiais'), tipo),
   };
 }
 
@@ -145,6 +146,28 @@ function categoriaTx(t: Tx, nome: string): string {
   return nome;
 }
 
+/** Impressora usada quando a ficha não diz: a primeira ativa pelo nome (com uma só, é ela). */
+function impressoraPadraoTx(t: Pick<Tx, 'all'>): ID | undefined {
+  return t
+    .all('impressoras')
+    .filter((i) => i.ativa)
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))[0]?.id;
+}
+
+/** Impressora padrão para o formulário novo (a primeira ativa). */
+export function impressoraPadrao(): ID | undefined {
+  return impressoraPadraoTx({ all: (col) => db.all(col) });
+}
+
+/** Categoria quando o produto não informa: a do último produto cadastrado, ou a primeira da lista. */
+function categoriaPadraoTx(t: Pick<Tx, 'all'>): string {
+  const ultimo = t
+    .all('produtos')
+    .filter((p) => !p.excluido)
+    .sort((a, b) => b.criadoEm.localeCompare(a.criadoEm))[0];
+  return ultimo?.categoria || db.config.categorias[0] || 'Outro';
+}
+
 function validarMesas(t: Tx, mesas: MesaEntrada[] | undefined): Mesa[] {
   if (!Array.isArray(mesas) || mesas.length === 0) {
     throw new ErroNegocio('Adicione pelo menos uma mesa na ficha técnica.');
@@ -152,8 +175,9 @@ function validarMesas(t: Tx, mesas: MesaEntrada[] | undefined): Mesa[] {
   const ids = new Set<ID>();
   return mesas.map((m, i) => {
     const rotulo = `Mesa ${i + 1}`;
-    if (!m.impressoraId || !t.get('impressoras', m.impressoraId)) {
-      throw new ErroNegocio(`${rotulo}: escolha a impressora.`);
+    const impressoraId = m.impressoraId || impressoraPadraoTx(t);
+    if (!impressoraId || !t.get('impressoras', impressoraId)) {
+      throw new ErroNegocio(t.all('impressoras').some((x) => x.ativa) ? `${rotulo}: escolha a impressora.` : 'Cadastre uma impressora em Configurações antes do produto.');
     }
     if (!Number.isInteger(m.pecasPorMesa) || m.pecasPorMesa < 1) {
       throw new ErroNegocio(`${rotulo}: "Peças desta mesa" precisa ser um número inteiro, 1 ou mais.`);
@@ -164,18 +188,21 @@ function validarMesas(t: Tx, mesas: MesaEntrada[] | undefined): Mesa[] {
     if (!Array.isArray(m.filamentos) || m.filamentos.length === 0) {
       throw new ErroNegocio(`${rotulo}: informe pelo menos um filamento, com as gramas da mesa inteira.`);
     }
+    // O produto guarda só o TIPO do filamento; um carretel informado fica como cor sugerida para a produção.
     const filamentos = m.filamentos.map((f) => {
       const mat = f.materialId ? t.get('materiais', f.materialId) : undefined;
-      if (!mat) throw new ErroNegocio(`${rotulo}: escolha um filamento cadastrado em Materiais.`);
-      if (mat.tipo !== 'filamento') throw new ErroNegocio(`${rotulo}: "${mat.nome}" não é um filamento.`);
-      if (!numeroValido(f.gramas) || f.gramas < 0) {
-        throw new ErroNegocio(`${rotulo}: informe as gramas de "${mat.nome}" (0 ou mais).`);
+      if (f.materialId && !mat) throw new ErroNegocio(`${rotulo}: o filamento escolhido não existe mais.`);
+      if (mat && mat.tipo !== 'filamento') throw new ErroNegocio(`${rotulo}: "${mat.nome}" não é um filamento.`);
+      const tipo = f.tipo ?? mat?.material ?? TIPO_PADRAO;
+      if (!TIPOS_FILAMENTO.includes(tipo)) throw new ErroNegocio(`${rotulo}: tipo de filamento inválido.`);
+      if (!numeroValido(f.gramas) || f.gramas <= 0) {
+        throw new ErroNegocio(`${rotulo}: informe as gramas de ${tipo} (do fatiador, da mesa inteira).`);
       }
-      return { materialId: f.materialId, gramas: f.gramas };
+      return mat ? { tipo, materialId: mat.id, gramas: f.gramas } : { tipo, gramas: f.gramas };
     });
     const id = m.id && !ids.has(m.id) ? m.id : novoId();
     ids.add(id);
-    return { id, pecasPorMesa: m.pecasPorMesa, tempoMin: m.tempoMin, impressoraId: m.impressoraId, filamentos };
+    return { id, pecasPorMesa: m.pecasPorMesa, tempoMin: m.tempoMin, impressoraId, filamentos };
   });
 }
 
@@ -214,8 +241,8 @@ export function salvarProdutoTx(t: Tx, dados: DadosProduto): Produto {
 
   const nome = texto(d.nome);
   if (!nome) throw new ErroNegocio('Informe o nome do produto.');
-  const categoriaInformada = texto(d.categoria);
-  if (!categoriaInformada) throw new ErroNegocio('Escolha a categoria do produto.');
+  // Categoria é opcional: sem ela, vale a do último produto cadastrado (ou a primeira da lista).
+  const categoriaInformada = texto(d.categoria) || categoriaPadraoTx(t);
 
   const maoDeObraMin = d.maoDeObraMin ?? MAO_DE_OBRA_PADRAO_MIN;
   if (!numeroValido(maoDeObraMin) || maoDeObraMin < 0) {
@@ -250,8 +277,6 @@ export function salvarProdutoTx(t: Tx, dados: DadosProduto): Produto {
 
   const campos = {
     nome,
-    modelo: texto(d.modelo) || nome,
-    cor: texto(d.cor),
     categoria: categoriaTx(t, categoriaInformada),
     fotoDataUrl: d.fotoDataUrl || undefined,
     precoEtiquetaCentavos,
@@ -277,98 +302,6 @@ export function salvarProduto(dados: DadosProduto): Produto {
   return db.tx((t) => salvarProdutoTx(t, dados));
 }
 
-/**
- * Nome da cópia em outra cor: troca a cor antiga no nome pela nova ou, se a cor não aparece no nome,
- * acrescenta a nova cor no fim. Ex.: ('Chaveiro Kettlebell Preto', 'Preto', 'Rosa') -> 'Chaveiro Kettlebell Rosa'.
- */
-export function nomeParaCor(nome: string, corAtual: string, corNova: string): string {
-  const n = nome.trim();
-  const antiga = corAtual.trim();
-  const nova = corNova.trim();
-  if (antiga) {
-    const baixo = n.toLocaleLowerCase('pt-BR');
-    const alvo = antiga.toLocaleLowerCase('pt-BR');
-    let i = baixo.lastIndexOf(alvo);
-    while (i >= 0) {
-      const antes = i > 0 ? n[i - 1] : '';
-      const depois = n[i + antiga.length] ?? '';
-      // Só troca palavra inteira ("Preto" em "Pretinho" não conta).
-      if (!LETRA_OU_NUMERO.test(antes) && !LETRA_OU_NUMERO.test(depois)) {
-        return n.slice(0, i) + nova + n.slice(i + antiga.length);
-      }
-      i = i > 0 ? baixo.lastIndexOf(alvo, i - 1) : -1;
-    }
-  }
-  return n ? `${n} ${nova}` : nova;
-}
-
-/** Junta filamentos repetidos numa mesa somando as gramas (acontece ao trocar uma cor por outra já presente). */
-function juntarFilamentos(lista: MesaFilamento[]): MesaFilamento[] {
-  const m = new Map<ID, number>();
-  for (const f of lista) m.set(f.materialId, (m.get(f.materialId) || 0) + f.gramas);
-  return Array.from(m, ([materialId, gramas]) => ({ materialId, gramas }));
-}
-
-export interface OpcoesDuplicarCor {
-  /** Nova cor (obrigatória e diferente da atual). */
-  cor: string;
-  /** Nome da cópia. Padrão: o nome com a cor trocada (ver nomeParaCor). */
-  nome?: string;
-  /** Troca este filamento pelo da nova cor em todas as mesas. */
-  trocarFilamento?: { de: ID; para: ID };
-}
-
-/**
- * "Duplicar para outra cor": cria outro produto (outro item de estoque) com o mesmo modelo, categoria,
- * ficha técnica, preço e mínimo, nova cor, novo nome e novo código. A foto não é copiada.
- */
-export function duplicarParaOutraCor(produtoId: ID, opcoes: OpcoesDuplicarCor): Produto {
-  return db.tx((t) => {
-    const orig = t.get('produtos', produtoId);
-    if (!orig) throw new ErroNegocio('Produto não encontrado.');
-    const cor = texto(opcoes.cor);
-    if (!cor) throw new ErroNegocio('Informe a nova cor.');
-    if (orig.cor && normalizarBusca(cor) === normalizarBusca(orig.cor)) {
-      throw new ErroNegocio(`Este produto já é da cor "${orig.cor}". Escolha outra cor.`);
-    }
-
-    let mesas: MesaEntrada[] = orig.mesas.map(({ id: _id, ...m }) => ({
-      ...m,
-      filamentos: m.filamentos.map((f) => ({ ...f })),
-    }));
-    const troca = opcoes.trocarFilamento;
-    if (troca) {
-      if (!mesas.some((m) => m.filamentos.some((f) => f.materialId === troca.de))) {
-        throw new ErroNegocio('O filamento a trocar não está na ficha técnica deste produto.');
-      }
-      const novo = troca.para ? t.get('materiais', troca.para) : undefined;
-      if (!novo || novo.tipo !== 'filamento') throw new ErroNegocio('Escolha o filamento da nova cor.');
-      mesas = mesas.map((m) => ({
-        ...m,
-        filamentos: juntarFilamentos(
-          m.filamentos.map((f) => (f.materialId === troca.de ? { ...f, materialId: troca.para } : f)),
-        ),
-      }));
-    }
-
-    return salvarProdutoTx(t, {
-      nome: texto(opcoes.nome) || nomeParaCor(orig.nome, orig.cor, cor),
-      modelo: orig.modelo,
-      cor,
-      categoria: orig.categoria,
-      precoEtiquetaCentavos: orig.precoEtiquetaCentavos,
-      estoqueMinimo: orig.estoqueMinimo,
-      maoDeObraMin: orig.maoDeObraMin,
-      mesas,
-      componentes: orig.componentes.map((c) => ({ ...c })),
-      origemModelo: orig.origemModelo,
-      linkModelo: orig.linkModelo,
-      licencaVenda: orig.licencaVenda,
-      margemPct: orig.margemPct ?? null,
-    });
-  });
-}
-
 /** Nome livre para a cópia: 'Nome "cópia"', depois 'Nome "cópia 2"', 'Nome "cópia 3"'... */
 export function nomeDaCopia(nome: string, existentes: Iterable<string>): string {
   const usados = new Set(Array.from(existentes, (n) => normalizarBusca(n)));
@@ -391,8 +324,6 @@ export function copiarProduto(produtoId: ID): Produto {
       .map((p) => p.nome);
     return salvarProdutoTx(t, {
       nome: nomeDaCopia(orig.nome, nomes),
-      modelo: orig.modelo,
-      cor: orig.cor,
       categoria: orig.categoria,
       fotoDataUrl: orig.fotoDataUrl,
       precoEtiquetaCentavos: orig.precoEtiquetaCentavos,
@@ -587,7 +518,7 @@ export function previaCusto(ficha: FichaPrevia, precoEtiquetaCentavos?: Cents | 
     id: m.id || `previa-${i}`,
     pecasPorMesa: m.pecasPorMesa,
     tempoMin: m.tempoMin,
-    impressoraId: m.impressoraId,
+    impressoraId: m.impressoraId || impressoraPadrao() || '',
     filamentos: m.filamentos ?? [],
   }));
   const composicao = composicaoCusto(

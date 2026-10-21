@@ -18,7 +18,7 @@ describe('dados de exemplo — etapa 1', () => {
 
   it('carrega impressoras, materiais e produtos marcados como exemplo', () => {
     const r = carregarExemplo();
-    assert.deepEqual(r, { impressoras: 2, materiais: 7, produtos: 5 });
+    assert.deepEqual(r, { impressoras: 2, materiais: 7, produtos: 4 });
     assert.equal(db.config.onboardingConcluido, true);
     assert.equal(db.config.custos.taxaCartaoPct, 4);
     assert.equal(db.config.canais.find((c) => c.tipo === 'cartao')!.comissaoPct, 4);
@@ -26,7 +26,7 @@ describe('dados de exemplo — etapa 1', () => {
     const pla = db.all('materiais').find((m) => m.nome === 'PLA Preto')!;
     assert.equal(pla.custoMedio, 100);
     const rosa = db.all('materiais').find((m) => m.nome === 'PLA Rosa')!;
-    // 1.000 g comprados − 24 Kettlebell Rosa (3 mesas × 64 g) produzidos em setembro.
+    // 1.000 g comprados − 24 Kettlebell feitos em rosa (3 mesas × 64 g) em setembro.
     assert.equal(saldoMaterial(rosa.id), 1000 - 192);
     assert.equal(db.all('parceiros').length, 2);
     assert.equal(db.all('expositores').length, 2);
@@ -40,7 +40,7 @@ describe('dados de exemplo — etapa 1', () => {
 
   it('Exemplo A sobre os dados de exemplo', () => {
     carregarExemplo();
-    const kb = produto('Chaveiro Kettlebell Preto');
+    const kb = produto('Chaveiro Kettlebell');
     const cu = custoProduto(kb.id);
     assert.equal(cu, 2.4873);
     const { canais, custos } = db.config;
@@ -58,9 +58,19 @@ describe('dados de exemplo — etapa 1', () => {
     assert.deepEqual([toCents(linha('parceiro_70_30').recebido), toCents(linha('parceiro_70_30').lucro)], [1050, 801]);
   });
 
+  it('Exemplo D: peça personalizada orçada pelo tipo (120 g de PLA), R$ 117,90 com sinal de R$ 58,95', () => {
+    carregarExemplo();
+    const d = db.all('pedidos').find((p) => p.numero === 1)!;
+    assert.equal(d.etapa, 'orcamento');
+    assert.deepEqual(d.itens[0].mesas![0].filamentos, [{ tipo: 'PLA', gramas: 120 }]);
+    assert.equal(d.itens[0].descricao, 'Chaveiro com nome');
+    assert.deepEqual([d.totalCentavos, d.sinalCentavos], [11790, 5895]);
+    assert.equal(d.exemplo, true);
+  });
+
   it('Exemplo G nos dados de exemplo: 15 boas em Casa, −128 g de PLA Preto, −15 argolas, −15 saquinhos', () => {
     carregarExemplo();
-    const kb = produto('Chaveiro Kettlebell Preto');
+    const kb = produto('Chaveiro Kettlebell');
     const prod = db.all('producoes').find((p) => p.produtoId === kb.id && p.data === DATA_PRODUCAO_G)!;
     assert.equal(prod.qtdBoa, 15);
     assert.equal(prod.qtdPerdida, 1);
@@ -101,7 +111,7 @@ describe('dados de exemplo — etapa 1', () => {
 
   it('backup exportado e importado reproduz os mesmos números', async () => {
     carregarExemplo();
-    const kbId = produto('Chaveiro Kettlebell Preto').id;
+    const kbId = produto('Chaveiro Kettlebell').id;
     const custo = custoProduto(kbId);
     const texto = await exportarBackup();
     assert.equal(validarBackup(texto).ok, true);

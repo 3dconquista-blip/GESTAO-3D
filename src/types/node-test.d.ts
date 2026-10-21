@@ -29,3 +29,8 @@ declare module 'node:assert/strict' {
   const assert: Assert;
   export default assert;
 }
+
+declare module 'node:module' {
+  /** Registra ganchos de carregamento de módulos (usado nos testes para achar o Preact em vendor/). */
+  export function register(especificador: string, pai?: string | URL): void;
+}

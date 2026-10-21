@@ -1,4 +1,5 @@
-// "Configurações" (seção 12): lista de seções e roteamento para cada uma.
+// "Configurações" (seção 12), em 5 seções (decisão 100). Canais e categorias ficam dentro de "Custos e preços";
+// mensagens dentro de "Empresa"; parcerias dentro de "Pedidos e parcerias" (links no fim de cada tela).
 import type { TelaProps } from '../../app/router.ts';
 import { useDb } from '../../data/hooks.ts';
 import { ItemLista, Lista, Pagina } from '../../ui/index.ts';
@@ -13,15 +14,11 @@ import { ConfigDados } from './ConfigDados.tsx';
 import './config.css';
 
 export const SECOES = [
-  { id: 'empresa', rotulo: 'Empresa', icone: 'loja', texto: 'Nome, logo, WhatsApp, chave PIX e política de cancelamento' },
-  { id: 'custos', rotulo: 'Custos e preços', icone: 'dinheiro', texto: 'Energia, sua hora, falhas, margem e arredondamento' },
-  { id: 'canais', rotulo: 'Canais de venda', icone: 'etiqueta', texto: 'Comissão de cada canal (PIX, cartão, parceiros, marketplace)' },
+  { id: 'empresa', rotulo: 'Empresa e mensagens', icone: 'loja', texto: 'Nome, WhatsApp, chave PIX, política de cancelamento e modelos de mensagem' },
+  { id: 'custos', rotulo: 'Custos e preços', icone: 'dinheiro', texto: 'Energia, sua hora, falhas, margem, canais de venda e categorias' },
   { id: 'impressoras', rotulo: 'Impressoras', icone: 'impressora', texto: 'Valor pago, vida útil, potência e manutenção' },
-  { id: 'parcerias', rotulo: 'Parcerias', icone: 'parceiros', texto: 'Divisões, frequência do acerto e avisos' },
-  { id: 'pedidos', rotulo: 'Pedidos', icone: 'pedidos', texto: 'Pedido mínimo, validade, urgência, desconto e sinal' },
-  { id: 'mensagens', rotulo: 'Mensagens', icone: 'whatsapp', texto: 'Modelos de mensagem do WhatsApp' },
-  { id: 'categorias', rotulo: 'Categorias', icone: 'camadas', texto: 'Categorias dos produtos' },
-  { id: 'dados', rotulo: 'Dados', icone: 'arquivo', texto: 'Backup, dados de exemplo e sincronização na nuvem' },
+  { id: 'pedidos', rotulo: 'Pedidos e parcerias', icone: 'pedidos', texto: 'Pedido mínimo, sinal, validade, divisões e frequência do acerto' },
+  { id: 'dados', rotulo: 'Dados e nuvem', icone: 'arquivo', texto: 'Backup, dados de exemplo e sincronização na nuvem' },
 ];
 
 export function Configuracoes({ params }: TelaProps) {

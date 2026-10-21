@@ -159,7 +159,10 @@ export interface MovMaterial extends Base {
 // ---------------------------------------------------------------- Produtos
 
 export interface MesaFilamento {
-  materialId: ID;
+  /** Tipo de filamento (PLA, PETG...). A cor é escolhida na produção (produto) ou em "Pronto" (peça de pedido). */
+  tipo?: TipoFilamento;
+  /** Carretel (cor) específico: em fichas e itens de pedido antigos (custo e baixa por ele); no produto, só a cor sugerida. */
+  materialId?: ID;
   /** Gramas da mesa inteira (total do fatiador, com purga e suportes). */
   gramas: number;
 }
@@ -183,8 +186,10 @@ export type LicencaVenda = 'sim' | 'nao' | 'nao_sei';
 
 export interface Produto extends Base {
   nome: string;
-  modelo: string; // agrupa cores: 'Chaveiro Kettlebell'
-  cor: string;
+  /** Obsoleto (produtos por cor, antes da decisão 85): só leitura em dados antigos. */
+  modelo?: string;
+  /** Obsoleto: o produto não tem cor; a cor é escolhida em cada produção. */
+  cor?: string;
   categoria: string;
   fotoDataUrl?: string;
   codigo: string; // automático: P-0001
@@ -251,6 +256,8 @@ export interface Producao extends Base {
   qtdPerdida: number;
   /** Quando informado, substitui o cálculo do filamento. */
   gramasReais?: MesaFilamento[];
+  /** Cor (carretel) usada em cada posição de filamento da ficha: 'mesaId:indice' -> materialId. */
+  cores?: Record<string, ID>;
   custoUnit: number;
   estornada?: boolean;
 }
@@ -383,6 +390,10 @@ export interface Cliente extends Base {
   arquivado: boolean;
 }
 
+/**
+ * Etapa do pedido. 'aprovado' é obsoleto: "Aprovado" e "Em produção" viraram uma etapa só ('producao'); pedidos
+ * antigos gravados como 'aprovado' são lidos como 'producao' (data/migracoes.ts).
+ */
 export type EtapaPedido = 'orcamento' | 'aprovado' | 'producao' | 'pronto' | 'entregue' | 'cancelado';
 export type CanalOrigem = 'whatsapp' | 'instagram' | 'presencial' | 'feira' | 'expositor' | 'indicacao' | 'outro';
 export type TipoEntrega = 'retirada' | 'propria' | 'correios';
@@ -397,6 +408,8 @@ export interface PedidoItem {
   mesas?: Mesa[];
   componentes?: Componente[];
   maoDeObraMin?: number;
+  /** Peça personalizada: cor (carretel) usada em cada posição de filamento ('mesaId:indice' -> materialId), gravada em "Pronto". */
+  cores?: Record<string, ID>;
   /** Custo por unidade calculado (reais, 4 casas). */
   custoUnit: number;
   /** custoUnit × quantidade (reais, 4 casas). */
@@ -409,6 +422,8 @@ export interface Pedido extends Base {
   numero: number; // #0001
   clienteId: ID;
   titulo: string;
+  /** O dono deixou o título em branco: ele é montado pelos itens e refeito quando os itens mudam. */
+  tituloAuto?: boolean;
   descricao?: string;
   referencias: { tipo: 'link' | 'arquivo' | 'foto'; valor: string; nome?: string }[];
   itens: PedidoItem[];
@@ -438,6 +453,7 @@ export interface Pedido extends Base {
   /** Sinal sugerido (centavos). */
   sinalCentavos: Cents;
   validade: ISODate;
+  /** Entrada em "Em produção" (aprovação). Hoje é gravada igual a producaoEm; em pedidos antigos podem diferir. */
   aprovadoEm?: ISODate;
   producaoEm?: ISODate;
   prontoEm?: ISODate;
@@ -446,6 +462,7 @@ export interface Pedido extends Base {
   motivoCancelamento?: string;
   destinoSinal?: 'reter' | 'devolver_tudo' | 'devolver_parte';
   sinalDispensadoMotivo?: string;
+  /** Obsoleto: o checklist saiu do app. Continua gravado (sempre falso) porque versões antigas em outros aparelhos leem. */
   checklist: { modeloAprovado: boolean; impresso: boolean; acabamento: boolean };
   historico: { data: ISODateTime; evento: string }[];
   /** Materiais das peças personalizadas já baixados (ao entrar em Pronto). */

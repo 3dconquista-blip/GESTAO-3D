@@ -46,21 +46,20 @@ function contar(r: RascunhoAcerto, contagem: Record<string, Partial<LinhaRascunh
 /** Faz B, C, D e uma venda direta de 2 Kettlebell Preto a R$ 15,00 no cartão (taxa 4% = R$ 1,20). */
 function mesDeOutubro() {
   let b = montarRascunho(parceiro('Academia Alfa').id, DATA_VISITA_BC);
-  b = contar(b, { 'Chaveiro Kettlebell Preto': { contei: 4 }, 'Chaveiro Anilha Vermelha': { contei: 5 }, 'Chaveiro Halter Cinza': { contei: 6 } });
+  b = contar(b, { 'Chaveiro Kettlebell': { contei: 4 }, 'Chaveiro Anilha': { contei: 5 }, 'Chaveiro Halter': { contei: 6 } });
   concluirAcerto({ ...b, pagamento: { valorCentavos: 8820, forma: 'pix', data: DATA_VISITA_BC } });
 
   let c = montarRascunho(parceiro('Loja Beta').id, DATA_VISITA_BC);
-  c = contar(c, { 'Chaveiro Kettlebell Rosa': { contei: 5, avariados: 1 }, 'Display PIX': { contei: 2 } });
+  c = contar(c, { 'Chaveiro Kettlebell': { contei: 5, avariados: 1 }, 'Display PIX': { contei: 2 } });
   concluirAcerto({ ...c, pixDiretoCentavos: 3000, pixEditado: true, pagamento: { valorCentavos: 5000, forma: 'pix', data: DATA_VISITA_BC } });
 
   const d = pedido1();
-  moverEtapa(d.id, 'aprovado', { data: '2026-10-17', sinal: { valorCentavos: 5895, forma: 'pix' } });
-  moverEtapa(d.id, 'producao', { data: '2026-10-18' });
+  moverEtapa(d.id, 'producao', { data: '2026-10-17', sinal: { valorCentavos: 5895, forma: 'pix' } });
   moverEtapa(d.id, 'pronto', { data: '2026-10-20' });
   moverEtapa(d.id, 'entregue', { data: '2026-10-21', pagamentoSaldo: { valorCentavos: 5895, forma: 'pix' } });
 
   registrarVenda({
-    itens: [{ produtoId: produto('Chaveiro Kettlebell Preto').id, quantidade: 2, precoUnitCentavos: 1500 }],
+    itens: [{ produtoId: produto('Chaveiro Kettlebell').id, quantidade: 2, precoUnitCentavos: 1500 }],
     forma: 'cartao',
     canal: 'feira',
     data: '2026-10-17',
@@ -76,7 +75,7 @@ describe('Etapa 5 — resultado de outubro soma os exemplos sem contar nada duas
 
   it('receita, custo, perdas, custos fixos e lucro batem com a soma feita à mão', () => {
     const r = resultadoDoMes('2026-10');
-    const kb = custoProduto(produto('Chaveiro Kettlebell Preto').id);
+    const kb = custoProduto(produto('Chaveiro Kettlebell').id);
     const display = custoProduto(produto('Display PIX').id);
     assert.equal(kb, 2.4873);
 
@@ -115,8 +114,9 @@ describe('Etapa 5 — resultado de outubro soma os exemplos sem contar nada duas
 
     const prods = produtosDoPeriodo(OUTUBRO);
     assert.equal(prods.reduce((s, l) => s + l.receitaCentavos, 0), r.receitaPorCanal.direta + r.receitaPorCanal.parceiros);
-    const kbPreto = prods.find((l) => l.produtoId === produto('Chaveiro Kettlebell Preto').id)!;
-    assert.deepEqual([kbPreto.unidadesDireta, kbPreto.unidadesParceiros], [2, 4 + 6]);
+    // Kettlebell é um produto só, de qualquer cor: 4 + 6 na Academia Alfa e 7 na Loja Beta.
+    const kbLinha = prods.find((l) => l.produtoId === produto('Chaveiro Kettlebell').id)!;
+    assert.deepEqual([kbLinha.unidadesDireta, kbLinha.unidadesParceiros], [2, 4 + 6 + 7]);
 
     const parcs = parceirosDoPeriodo(OUTUBRO);
     const alfa = parcs.find((l) => l.parceiroId === parceiro('Academia Alfa').id)!;
@@ -151,13 +151,13 @@ describe('Etapa 5 — resultado de outubro soma os exemplos sem contar nada duas
   it('pedido cancelado com sinal retido: o valor retido é receita e o material gasto vira perda', () => {
     const antes = resultadoDoMes('2026-10');
     const novo = duplicarOrcamento(pedido1().id, '2026-10-22');
-    moverEtapa(novo.id, 'aprovado', { data: '2026-10-22', sinal: { valorCentavos: 5895, forma: 'pix' } });
+    moverEtapa(novo.id, 'producao', { data: '2026-10-22', sinal: { valorCentavos: 5895, forma: 'pix' } });
     moverEtapa(novo.id, 'pronto', { data: '2026-10-24' });
     moverEtapa(novo.id, 'cancelado', { data: '2026-10-25', motivo: 'Desistiu', destinoSinal: 'reter' });
     const r = resultadoDoMes('2026-10');
     assert.equal(r.receitaPorCanal.pedidos - antes.receitaPorCanal.pedidos, 5895);
     assert.equal(r.cmvCentavos, antes.cmvCentavos);
-    // 120 g de PLA Branco a R$ 100,00/kg + 20 argolas a R$ 0,30.
+    // 120 g de PLA (todas as cores a R$ 100,00/kg) + 20 argolas a R$ 0,30.
     assert.equal(r.perdasCentavos - antes.perdasCentavos, 1200 + 600);
   });
 
@@ -168,7 +168,7 @@ describe('Etapa 5 — resultado de outubro soma os exemplos sem contar nada duas
     assert.equal(p.serie.length, 6);
     assert.equal(p.serie[5].mes, '2026-10');
     assert.equal(p.serie[5].direta + p.serie[5].parceiros + p.serie[5].pedidos, p.mes.atual.receitaCentavos);
-    assert.equal(p.topProdutos[0].produtoId, produto('Chaveiro Kettlebell Preto').id);
+    assert.equal(p.topProdutos[0].produtoId, produto('Chaveiro Kettlebell').id);
     assert.equal(p.topParceiros[0].parceiroId, parceiro('Academia Alfa').id);
     assert.equal(p.hoje.aReceber.parceirosCentavos, 3200);
     assert.equal(p.hoje.aReceber.pedidosCentavos, 0);
@@ -177,8 +177,8 @@ describe('Etapa 5 — resultado de outubro soma os exemplos sem contar nada duas
 
   it('produtos parados: com estoque e sem venda no período', () => {
     const parados = produtosParados(OUTUBRO).map((x) => x.produto.nome);
-    assert.ok(parados.includes('Chaveiro Halter Cinza'));
-    assert.ok(!parados.includes('Chaveiro Kettlebell Preto'));
+    assert.ok(parados.includes('Chaveiro Halter'));
+    assert.ok(!parados.includes('Chaveiro Kettlebell'));
   });
 
   it('CSV do resultado e por canal: ";" e vírgula decimal, prontos para o Excel', () => {

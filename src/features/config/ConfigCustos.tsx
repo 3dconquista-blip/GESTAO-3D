@@ -6,7 +6,7 @@ import { erroParametros, multiplicadorDireto } from '../../domain/pricing.ts';
 import { formatNumero } from '../../lib/format.ts';
 import { atualizarCustos, atualizarEstoqueConfig } from '../../services/config.ts';
 import { Aviso, Botao, Campo, Cartao, Dinheiro, Numero, Pagina, Segmentado } from '../../ui/index.ts';
-import { BarraSalvar, mostrarAvisos, tentar } from './comum.tsx';
+import { BarraSalvar, TambemNestaSecao, mostrarAvisos, tentar } from './comum.tsx';
 
 export function ConfigCustos() {
   const [c, setC] = useState<ParametrosCusto>(() => ({ ...db.config.custos }));
@@ -96,6 +96,13 @@ export function ConfigCustos() {
       </Cartao>
 
       <p class="muted">Mudar os custos recalcula o custo dos produtos, mas o preço de etiqueta não muda sozinho: produtos com margem abaixo da mínima ganham um alerta.</p>
+
+      <TambemNestaSecao
+        itens={[
+          { rotulo: 'Canais de venda', texto: 'Comissão de cada canal (PIX, cartão, parceiros, marketplace)', href: '/config/canais', icone: 'etiqueta' },
+          { rotulo: 'Categorias', texto: 'Categorias dos produtos', href: '/config/categorias', icone: 'camadas' },
+        ]}
+      />
 
       <BarraSalvar>
         <Botao variante="primario" icone="check" onClick={salvar} disabled={!!erro}>

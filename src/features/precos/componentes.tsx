@@ -1,12 +1,13 @@
-// Componentes de precificação compartilhados (produto, simulador avulso, calculadora e pedidos):
-// - FichaTecnicaEditor: mesas, filamentos, componentes e mão de obra (seção 6.3)
+// Componentes de precificação compartilhados (cadastro e detalhe do produto, peça personalizada do pedido):
+// - FichaTecnicaEditor: mesas, tipo de filamento e gramas (seção 6.3); ComponentesEditor: componentes e mão de obra
 // - ComposicaoCustoView: lista + barra empilhada da composição do custo por peça
 // - PrecosSugeridos: preço sugerido por canal ativo e etiqueta sugerida (6.4)
 // - TabelaSimulador / SimuladorPreco: "Preço de etiqueta" e tabela Canal | Você recebe | Custo | Lucro | Margem
 import { useMemo, useState } from 'preact/hooks';
 import { db } from '../../data/db.ts';
 import { contextoCusto, materiaisAtivos } from '../../data/selectors.ts';
-import type { Cents, Componente, Mesa } from '../../data/types.ts';
+import type { Cents, Componente, Mesa, MesaFilamento, TipoFilamento } from '../../data/types.ts';
+import { TIPO_PADRAO, TIPOS_FILAMENTO, tipoDoSlot } from '../../domain/filamento.ts';
 import {
   canaisAtivos,
   comissaoCanal,
@@ -29,7 +30,6 @@ import {
   BarraComposicao,
   Botao,
   Campo,
-  Dica,
   Dinheiro,
   Escolha,
   Icon,
@@ -40,62 +40,72 @@ import {
 } from '../../ui/index.ts';
 import './precos.css';
 
-export const DICA_FICHA =
-  'Use os dados do fatiador depois de fatiar. Peças multicoloridas gastam filamento com purga; mais peças na mesma mesa diluem esse gasto.';
+/**
+ * Modo da ficha. Só existe 'produto': a ficha guarda o TIPO de filamento e a cor é escolhida na produção (produto)
+ * ou em "Pronto" (peça personalizada do pedido), decisão 85. Fichas e itens antigos com o carretel gravado continuam
+ * valendo (o tipo vem do carretel). O parâmetro fica para quem ainda passa modo="produto".
+ */
+export type ModoFicha = 'produto';
 
-/** Mesa nova com padrões: 1 peça, primeira impressora ativa e primeiro filamento. */
-export function novaMesa(): Mesa {
+/** Tipos de filamento que têm carretel ativo (para escolher na ficha). */
+export function tiposDisponiveis(): TipoFilamento[] {
+  const tipos = new Set(materiaisAtivos('filamento').map((m) => m.material ?? TIPO_PADRAO));
+  return TIPOS_FILAMENTO.filter((t) => tipos.has(t));
+}
+
+/** Mesa nova com padrões: 1 peça, primeira impressora ativa e o primeiro tipo de filamento com carretel (ou PLA). */
+export function novaMesa(_modo?: ModoFicha): Mesa {
   const imp = db
     .all('impressoras')
     .filter((i) => i.ativa)
     .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))[0];
-  const fil = materiaisAtivos('filamento')[0];
-  return {
-    id: novoId(),
-    pecasPorMesa: 1,
-    tempoMin: 0,
-    impressoraId: imp?.id ?? '',
-    filamentos: fil ? [{ materialId: fil.id, gramas: 0 }] : [],
-  };
+  return { id: novoId(), pecasPorMesa: 1, tempoMin: 0, impressoraId: imp?.id ?? '', filamentos: [{ tipo: tiposDisponiveis()[0] ?? TIPO_PADRAO, gramas: 0 }] };
 }
 
-export function fichaVazia(): FichaTecnica {
+export function fichaVazia(_modo?: ModoFicha): FichaTecnica {
   return { mesas: [novaMesa()], componentes: [], maoDeObraMin: 2 };
 }
 
 // ---------------------------------------------------------------- Editor da ficha técnica
 
-export function FichaTecnicaEditor({ valor, onChange, mostrarMaoDeObra = true }: { valor: FichaTecnica; onChange: (f: FichaTecnica) => void; mostrarMaoDeObra?: boolean }) {
+/**
+ * Editor das mesas (peças, tempo, tipo de filamento e gramas). O tipo só aparece com 2 ou mais tipos e a impressora
+ * só com 2 ou mais ativas. `mostrarExtras` mostra os botões de outra cor (multicolor) e de outra mesa. Componentes e
+ * mão de obra ficam no `ComponentesEditor` (em "Mais detalhes" no produto e no pedido).
+ */
+export function FichaTecnicaEditor({
+  valor,
+  onChange,
+  mostrarExtras = true,
+}: {
+  valor: FichaTecnica;
+  onChange: (f: FichaTecnica) => void;
+  modo?: ModoFicha;
+  mostrarExtras?: boolean;
+}) {
   const impressoras = db.all('impressoras').filter((i) => i.ativa || valor.mesas.some((m) => m.impressoraId === i.id));
-  const filamentos = materiaisAtivos('filamento');
-  const insumos = materiaisAtivos('insumo');
+  const tipos = tiposDisponiveis();
+  const variasMesas = valor.mesas.length > 1;
+  // A impressora só aparece se houver escolha (ou se a da ficha não for a padrão).
+  const mostrarImpressora = impressoras.length > 1;
 
   const mudarMesa = (i: number, patch: Partial<Mesa>) => {
     const mesas = valor.mesas.map((m, k) => (k === i ? { ...m, ...patch } : m));
     onChange({ ...valor, mesas });
   };
-  const mudarComp = (i: number, patch: Partial<Componente>) => {
-    onChange({ ...valor, componentes: valor.componentes.map((c, k) => (k === i ? { ...c, ...patch } : c)) });
-  };
+  const mudarFil = (i: number, k: number, patch: Partial<MesaFilamento>) =>
+    mudarMesa(i, { filamentos: valor.mesas[i].filamentos.map((x, j) => (j === k ? { ...x, ...patch } : x)) });
 
   return (
     <div class="ficha">
-      <Dica>{DICA_FICHA}</Dica>
       {valor.mesas.map((mesa, i) => {
-        const horas = Math.floor((mesa.tempoMin || 0) / 60);
-        const minutos = Math.round((mesa.tempoMin || 0) % 60);
-        return (
-          <fieldset key={mesa.id} class="ficha-mesa">
-            <legend>
-              Mesa {i + 1}
-              {valor.mesas.length > 1 && (
-                <button type="button" class="ficha-remover" onClick={() => onChange({ ...valor, mesas: valor.mesas.filter((_, k) => k !== i) })}>
-                  <Icon nome="fechar" tamanho={16} /> Remover mesa
-                </button>
-              )}
-            </legend>
+        const t = Math.round(mesa.tempoMin || 0);
+        const horas = Math.floor(t / 60);
+        const minutos = t % 60;
+        const conteudo = (
+          <>
             <div class="campos-3">
-              <Campo rotulo="Peças desta mesa" dica="Quantas unidades saem nesta impressão">
+              <Campo rotulo="Peças por mesa" dica="Quantas saem de uma impressão">
                 <Numero value={mesa.pecasPorMesa} onChange={(v) => mudarMesa(i, { pecasPorMesa: Math.max(1, v ?? 1) })} decimais={0} min={1} stepper />
               </Campo>
               <Campo rotulo="Tempo da mesa">
@@ -104,59 +114,78 @@ export function FichaTecnicaEditor({ valor, onChange, mostrarMaoDeObra = true }:
                   <Numero value={minutos} onChange={(m) => mudarMesa(i, { tempoMin: horas * 60 + Math.min(59, m ?? 0) })} decimais={0} min={0} max={59} sufixo="min" ariaLabel="Minutos" />
                 </div>
               </Campo>
-              <Campo rotulo="Impressora">
-                <Escolha
-                  value={mesa.impressoraId || null}
-                  onChange={(v) => mudarMesa(i, { impressoraId: v })}
-                  opcoes={impressoras.map((p) => ({ valor: p.id, rotulo: p.nome }))}
-                  placeholder={impressoras.length ? 'Escolha a impressora' : 'Cadastre uma impressora'}
-                />
-              </Campo>
+              {mostrarImpressora && (
+                <Campo rotulo="Impressora">
+                  <Escolha
+                    value={mesa.impressoraId || null}
+                    onChange={(v) => mudarMesa(i, { impressoraId: v })}
+                    opcoes={impressoras.map((p) => ({ valor: p.id, rotulo: p.nome }))}
+                    placeholder={impressoras.length ? 'Escolha a impressora' : 'Cadastre uma impressora'}
+                  />
+                </Campo>
+              )}
             </div>
             <div class="ficha-sub">
-              <span class="campo-rotulo">Filamentos da mesa (gramas da mesa inteira)</span>
-              {mesa.filamentos.map((f, k) => (
-                <div key={k} class="ficha-item">
-                  <Escolha
-                    value={f.materialId || null}
-                    onChange={(v) => mudarMesa(i, { filamentos: mesa.filamentos.map((x, j) => (j === k ? { ...x, materialId: v } : x)) })}
-                    opcoes={filamentos.map((m) => ({ valor: m.id, rotulo: m.nome }))}
-                    placeholder={filamentos.length ? 'Filamento' : 'Cadastre um filamento'}
-                  />
-                  <Numero
-                    value={f.gramas}
-                    onChange={(g) => mudarMesa(i, { filamentos: mesa.filamentos.map((x, j) => (j === k ? { ...x, gramas: Math.max(0, g ?? 0) } : x)) })}
-                    decimais={1}
-                    min={0}
-                    sufixo="g"
-                    ariaLabel="Gramas"
-                  />
-                  <Botao
-                    pequeno
-                    variante="fantasma"
-                    icone="fechar"
-                    title="Remover filamento"
-                    onClick={() => mudarMesa(i, { filamentos: mesa.filamentos.filter((_, j) => j !== k) })}
-                  />
-                </div>
-              ))}
-              <Botao
-                pequeno
-                variante="fantasma"
-                icone="plus"
-                disabled={!filamentos.length}
-                onClick={() => mudarMesa(i, { filamentos: [...mesa.filamentos, { materialId: filamentos[0]?.id ?? '', gramas: 0 }] })}
-              >
-                Adicionar filamento
-              </Botao>
+              <span class="campo-rotulo">Filamento (gramas do fatiador, mesa inteira)</span>
+              {mesa.filamentos.map((f, k) => {
+                // Ficha antiga com o carretel gravado: o tipo vem do carretel (trocar o tipo tira o carretel).
+                const tipo = tipoDoSlot(f, (id) => db.get('materiais', id));
+                const opcoesTipo = Array.from(new Set([...tipos, tipo]));
+                return (
+                  <div key={k} class={`ficha-item ${opcoesTipo.length <= 1 ? 'ficha-item-so-gramas' : ''}`}>
+                    {opcoesTipo.length > 1 ? (
+                      <Escolha value={tipo} onChange={(v) => mudarFil(i, k, { tipo: v, materialId: undefined })} opcoes={opcoesTipo.map((t) => ({ valor: t, rotulo: t }))} />
+                    ) : null}
+                    <Numero value={f.gramas} onChange={(g) => mudarFil(i, k, { gramas: Math.max(0, g ?? 0) })} decimais={1} min={0} sufixo={`g de ${tipo}`} ariaLabel="Gramas" />
+                    {mesa.filamentos.length > 1 ? (
+                      <Botao pequeno variante="fantasma" icone="fechar" title="Remover cor" onClick={() => mudarMesa(i, { filamentos: mesa.filamentos.filter((_, j) => j !== k) })} />
+                    ) : (
+                      <span />
+                    )}
+                  </div>
+                );
+              })}
+              {mostrarExtras && (
+                <Botao pequeno variante="fantasma" icone="plus" onClick={() => mudarMesa(i, { filamentos: [...mesa.filamentos, { tipo: tipos[0] ?? TIPO_PADRAO, gramas: 0 }] })}>
+                  Outra cor na mesma peça (multicolor)
+                </Botao>
+              )}
             </div>
+          </>
+        );
+        return variasMesas ? (
+          <fieldset key={mesa.id} class="ficha-mesa">
+            <legend>
+              Mesa {i + 1}
+              <button type="button" class="ficha-remover" onClick={() => onChange({ ...valor, mesas: valor.mesas.filter((_, k) => k !== i) })}>
+                <Icon nome="fechar" tamanho={16} /> Remover mesa
+              </button>
+            </legend>
+            {conteudo}
           </fieldset>
+        ) : (
+          <div key={mesa.id} class="ficha-mesa ficha-mesa-unica">
+            {conteudo}
+          </div>
         );
       })}
-      <Botao variante="secundario" icone="plus" onClick={() => onChange({ ...valor, mesas: [...valor.mesas, novaMesa()] })}>
-        Adicionar outra mesa
-      </Botao>
+      {mostrarExtras && (
+        <Botao variante="fantasma" pequeno icone="plus" onClick={() => onChange({ ...valor, mesas: [...valor.mesas, novaMesa()] })}>
+          Outra mesa (peça em partes)
+        </Botao>
+      )}
+    </div>
+  );
+}
 
+/** Componentes por peça (argola, saquinho...) e mão de obra por peça. */
+export function ComponentesEditor({ valor, onChange, mostrarMaoDeObra = true }: { valor: FichaTecnica; onChange: (f: FichaTecnica) => void; mostrarMaoDeObra?: boolean }) {
+  const insumos = materiaisAtivos('insumo');
+  const mudarComp = (i: number, patch: Partial<Componente>) => {
+    onChange({ ...valor, componentes: valor.componentes.map((c, k) => (k === i ? { ...c, ...patch } : c)) });
+  };
+  return (
+    <>
       <fieldset class="ficha-mesa">
         <legend>Componentes por peça</legend>
         {valor.componentes.length === 0 && <p class="muted">Argola, corrente, ímã, saquinho, etiqueta...</p>}
@@ -177,13 +206,12 @@ export function FichaTecnicaEditor({ valor, onChange, mostrarMaoDeObra = true }:
           {insumos.length ? 'Adicionar componente' : 'Cadastre insumos em Estoque > Materiais'}
         </Botao>
       </fieldset>
-
       {mostrarMaoDeObra && (
         <Campo rotulo="Mão de obra por peça (min)" dica="Preparar a mesa, acabamento, montagem e embalagem, dividido por peça">
           <Numero value={valor.maoDeObraMin} onChange={(v) => onChange({ ...valor, maoDeObraMin: Math.max(0, v ?? 0) })} decimais={1} min={0} stepper sufixo="min" />
         </Campo>
       )}
-    </div>
+    </>
   );
 }
 

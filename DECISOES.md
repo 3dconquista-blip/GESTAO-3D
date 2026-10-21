@@ -219,3 +219,114 @@ Registro das escolhas feitas onde a especificação não define, ou deixa a crit
     preço de etiqueta (mesmo valor, reajuste em % arredondado como os preços sugeridos, ou o sugerido de cada
     produto) e arquivar/reativar, com prévia dos preços; ou excluir os selecionados. É tudo ou nada: se um produto
     não puder ser alterado, nenhum é.
+
+## Publicação na internet (19/10/2026)
+
+80. **App no GitHub Pages, dados no Supabase.** O Supabase Storage não serve páginas HTML (devolve texto puro), então
+    o app fica no GitHub Pages do repositório público, com `.nojekyll` (sem processamento do Jekyll, que tropeçaria em
+    `{{ }}` dos documentos). O Supabase fica com o login e a tabela `octa_registros`. Passo a passo em `PUBLICAR.md`.
+81. **Sincronização busca antes de enviar.** Antes, um aparelho novo enviava a configuração padrão dele antes de baixar
+    a da nuvem e sobrescrevia empresa, custos e mensagens. Agora a busca vem primeiro (a versão mais nova vence e a
+    pendência local mais velha é descartada) e o SQL tem um trigger que recusa gravar uma versão mais velha por cima de
+    uma mais nova.
+82. **SQL com GRANT.** Projetos novos do Supabase (desde 30/05/2026) não liberam tabelas novas para a API: o SQL dá
+    acesso só ao papel `authenticated` (e tira de `anon`); o RLS continua limitando cada usuário às próprias linhas.
+    Chave aceita: `sb_publishable_...` (ou a `anon` antiga); a `sb_secret_...` é recusada.
+83. **Outro aparelho entra com um link.** Em Configurações > Dados, o app gera um link `#/?nuvem=...` com a URL e a
+    chave pública do projeto (públicas por natureza). Aberto no celular, liga a nuvem e pede só e-mail e senha. O
+    assistente de primeiro acesso também ganhou "Entrar na minha conta", para um aparelho novo não precisar criar
+    empresa, impressora e filamento falsos antes de entrar.
+84. **Confirmação de e-mail desligada e cadastro fechado.** O e-mail grátis do Supabase só envia para membros do
+    projeto (2 por hora); o passo a passo desliga "Confirm email" e, depois de criada a conta do dono, desliga "Allow
+    new users to sign up".
+
+## Simplificação, Etapa A: produtos, filamento e produção (20/10/2026)
+
+85. **Produto sem cor fixa.** O produto guarda só o TIPO do filamento (PLA, PETG...) e as gramas da mesa. A cor é
+    escolhida a cada produção, em botões com a amostra da cor, e o filamento sai do carretel escolhido. A cor já
+    vem marcada: a última usada naquele produto; senão a sugerida pela ficha; senão o carretel do tipo com mais
+    saldo. O custo do filamento na ficha é a média do custo do kg dos carretéis ativos do tipo. O estoque do produto
+    não separa por cor (um Kettlebell é um Kettlebell). "O que imprimir" soma a necessidade por tipo e compara com o
+    saldo de todas as cores. Fichas antigas, com o carretel gravado, continuam valendo: o carretel vira a cor sugerida.
+    Itens personalizados de pedidos: ver a decisão 89.
+86. **Telas enxutas (Pareto 80/20).** Cada tela mostra só o que se usa quase sempre. Produto: nome, peças por mesa,
+    tempo, gramas e preço; categoria, mínimo, margem, foto, várias mesas/cores, componentes e licença vão para "Mais
+    detalhes" (com uma impressora só, ou um tipo de filamento só, o campo nem aparece). Filamento: tipo, cor, custo do
+    kg e quanto tem; o nome ("PLA Azul") e a amostra saem da cor. Compra de material cadastra uma cor nova na hora. Em
+    vez de janela de confirmação, registrar produção ou compra mostra um aviso com "Desfazer" (8 segundos), que
+    estorna o lançamento. A aba Movimentações saiu do Estoque (o link fica na lista de produtos).
+
+## Simplificação, Etapa B: vendas, pedidos e clientes (20/10/2026)
+
+87. **Venda rápida em 3 toques:** produtos, forma de pagamento (na barra de baixo, junto do "Registrar") e Registrar.
+    Sem janela de confirmação: o aviso traz "Desfazer", que cancela a venda (estorno dos itens e devolução do
+    pagamento, datados no dia da própria venda) e devolve o carrinho à tela para corrigir. A venda desfeita continua no
+    histórico como "Cancelada" (nada é apagado). Forma e canal lembram o último uso neste aparelho; canal, cliente,
+    data, desconto, preço de cada item e o resumo de lucro ficam em "Mais detalhes". O aviso de "faltam N em Casa"
+    continua à vista.
+88. **"Aprovado" e "Em produção" viram uma etapa só, "Em produção"** (gravada como 'producao'). Sair do orçamento pede
+    o sinal (ou o motivo para dispensar) e grava a aprovação e o início da produção na mesma data, numa linha só do
+    histórico. Pedidos antigos gravados como 'aprovado' são lidos como 'producao' só em memória (nada é regravado, para
+    não mexer na sincronização) e seguem direto para "Pronto". O checklist saiu da tela; o campo continua gravado
+    (sempre falso) porque versões antigas do app em outros aparelhos o leem. Revisa as decisões 46 e 47.
+89. **Peça personalizada só com descrição, quantidade, tempo total, gramas totais e tipo de filamento** (o tipo só
+    aparece com 2 ou mais tipos cadastrados). Fica como uma mesa com todas as peças; mudar a quantidade reescala tempo e
+    gramas. Impressora, componentes, mão de obra e a ficha completa (multicolor ou várias mesas) ficam em "Mais
+    detalhes". O custo usa a média do kg do tipo (decisão 85); o Exemplo D continua em R$ 117,90. A cor é escolhida ao
+    passar para "Pronto", com os mesmos botões da produção: já vem marcada a cor gravada no item, senão o carretel antigo
+    do item, senão o carretel do tipo com mais saldo; o filamento sai desse carretel e a cor fica gravada no item.
+    Sem carretel do tipo, o app pede para cadastrar um antes. Também corrige um erro da Etapa A: itens de catálogo em
+    pedidos eram gravados sem o custo do filamento.
+90. **Pedido enxuto.** À vista: cliente, itens, prazo e um campo "Valor" (vazio = calculado) com a linha "calculado ·
+    sinal · lucro". Título (vazio = montado a partir dos itens e refeito quando eles mudam, até o dono digitar um;
+    peça sem descrição vira "Peça personalizada"), descrição, modelagem, urgência, desconto, sinal, entrega, canal,
+    referências e observações ficam em "Mais detalhes". Salvar sem mudar os itens não os recalcula. No detalhe, só a
+    mensagem sugerida para a etapa fica à vista; registrar pagamento traz "Desfazer" (estorno datado no dia do próprio
+    pagamento); duplicar orçamento não pergunta mais.
+91. **Cliente só com nome e WhatsApp.** O resto (Instagram, cidade, bairro, endereço, aniversário, como conheceu,
+    aceita novidades, observações) fica em "Mais detalhes", com um resumo do que já está preenchido. Nada guardado é
+    apagado ao editar. O cadastro rápido dentro do pedido pede só nome e WhatsApp.
+92. **Calculadora e Simulador saem do app.** O preço por canal fica no produto (preços sugeridos e tabela por canal) e
+    a cotação de peça avulsa é o próprio orçamento do pedido.
+
+## Simplificação, Etapa C: parceiros (20/10/2026)
+
+93. **"Levar peças" no lugar de "Instalação" e "Reposição avulsa".** Uma tela só: na primeira vez instala (leva o
+    expositor e gera o termo); depois, repõe. Já vem a sugestão (nível ideal − o que está no expositor, limitada ao
+    que há em Casa); parceiro novo, sem mix, mostra os produtos que há em Casa. Produto levado que não estava no mix
+    entra nele. Sem janela de confirmação: o aviso traz "Desfazer", que estorna as remessas (as peças voltam para
+    Casa), devolve o mix de antes e, numa instalação, leva o expositor de volta e desfaz a data de instalação.
+    "Recolher" segue igual, também com "Desfazer". Os endereços antigos (/instalacao e /reposicao) abrem a tela nova.
+94. **Acerto em 3 passos: Contagem, Reposição e Fechar.** As ocorrências (avariados, recolhidos, faltas abonadas), a
+    data da visita e o item encontrado ficam em "Mais detalhes" da contagem; em "Fechar", à vista o total de hoje, o
+    valor recebido e a forma, e o cálculo por produto (com os preços) em "Mais detalhes". As contas dos Exemplos B, C,
+    E e F não mudam. Concluir não pergunta: o aviso traz "Desfazer" (reabre o acerto). O acerto final pede
+    confirmação e, ao ser concluído, já encerra a parceria na mesma operação (expositores voltam para Casa); ele não
+    pode ser reaberto. Rascunhos antigos, de 5 passos, abrem no passo equivalente.
+95. **Uma tela "Parceiros" no lugar das 3 abas.** À vista, a agenda de acertos dos parceiros ativos (com "Fazer
+    acerto" ou, para quem ainda não tem peças, "Levar peças"). Os outros parceiros (pausados, encerrados, arquivados)
+    e os expositores ficam em "Mais detalhes". No detalhe do parceiro, à vista o acerto, "Levar peças", o que está
+    no expositor e o que há a receber; acertos, desempenho, dados, mix, recolher, termo, pausar e encerrar ficam em
+    "Mais detalhes".
+96. **Cadastro do parceiro em 6 campos:** nome, WhatsApp, endereço, bairro, divisão e frequência do acerto. Tipo,
+    responsável, link do mapa, quem recebe, data de início, termo, nota de remessa e observações ficam em "Mais
+    detalhes". Cadastrar leva direto para "Levar peças".
+97. **Expositor só com o custo.** O código sai sozinho (EXP-03...); modelo, capacidade, foto, onde está, estado e
+    arquivar ficam em "Mais detalhes".
+
+## Simplificação, Etapa D: Início, relatórios, configurações e primeiro acesso (21/10/2026)
+
+98. **Início = o que fazer hoje + receita e lucro do mês.** Uma lista só, "Para fazer hoje", do mais urgente ao
+    menos: acertos atrasados e da semana (abre o acerto), pedidos com alerta, pedidos entregues a receber e alertas
+    de estoque (até 5; o resto em "O que imprimir"). Do mês, só a receita e o lucro estimado (com a comparação com o
+    mês anterior) e, havendo, o total a receber. Divisão por canal, gráfico de 6 meses, top 5 e "dinheiro que
+    entrou" ficam em Relatórios.
+99. **Relatórios em 3 abas:** Resultado (receita, lucro e o demonstrativo; perdas, por canal, dinheiro que entrou e
+    a receita do ano em "Mais detalhes"), Vendas (produtos mais vendidos, parados, margens e parceiros) e Materiais.
+    Os links antigos (?secao=canais, parceiros...) abrem a aba que agora tem a seção.
+100. **Configurações em 5 seções:** Empresa e mensagens, Custos e preços (com canais de venda e categorias), Impressoras,
+    Pedidos e parcerias, e Dados e nuvem. As telas de canais, categorias, mensagens e parcerias continuam, ligadas no
+    fim da tela principal da seção ("Também nesta seção").
+101. **Primeiro acesso em 2 passos:** empresa e impressora (só nome da empresa, chave PIX e quanto pagou na impressora à
+    vista; nome do PIX, WhatsApp, vida útil, potência e manutenção em "Mais detalhes"), depois filamentos (tipo, cor,
+    custo do kg e quanto tem; a amostra sai do nome da cor).

@@ -18,6 +18,9 @@ export function ClientesLista(_props: TelaProps) {
     .filter((c) => (arquivados ? c.arquivado : !c.arquivado))
     .filter((c) => combinaBusca(busca, c.nome, c.whatsapp, c.instagram, c.cidade, c.bairro))
     .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  // Números de cada cliente da lista, calculados uma vez por linha (três colunas usam).
+  const numeros = new Map(lista.map((c) => [c.id, estatisticasCliente(c.id)]));
+  const num = (c: Cliente) => numeros.get(c.id) ?? estatisticasCliente(c.id);
 
   const colunas: Coluna<Cliente>[] = [
     {
@@ -32,9 +35,9 @@ export function ClientesLista(_props: TelaProps) {
       ),
     },
     { id: 'whats', rotulo: 'WhatsApp', render: (c) => formatarTelefone(c.whatsapp) || '—' },
-    { id: 'pedidos', rotulo: 'Pedidos', alinhar: 'dir', render: (c) => String(estatisticasCliente(c.id).pedidos) },
-    { id: 'total', rotulo: 'Total gasto', alinhar: 'dir', render: (c) => formatBRL(estatisticasCliente(c.id).totalGastoCentavos) },
-    { id: 'ultima', rotulo: 'Última compra', render: (c) => formatData(estatisticasCliente(c.id).ultimaCompra), esconderNoCelular: true },
+    { id: 'pedidos', rotulo: 'Pedidos', alinhar: 'dir', render: (c) => String(num(c).pedidos) },
+    { id: 'total', rotulo: 'Total gasto', alinhar: 'dir', render: (c) => formatBRL(num(c).totalGastoCentavos) },
+    { id: 'ultima', rotulo: 'Última compra', render: (c) => formatData(num(c).ultimaCompra), esconderNoCelular: true },
   ];
 
   return (
