@@ -25,3 +25,7 @@
 .ficha-mesa-unica { border: 0; padding: 0; background: transparent; }
 @media (min-width: 560px) { .ficha-item.ficha-item-so-gramas { grid-template-columns: minmax(0, 1fr) 36px; } }
 .importar-fatiador { justify-content: center; border-style: dashed; width: 100%; }
+.calc-resultado { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-bottom: 10px; }
+.calc-resultado > div { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 12px; background: var(--superficie-2); }
+.calc-resultado span { font-size: 0.85rem; color: var(--texto-2); }
+.calc-resultado strong { font-size: 1.25rem; }

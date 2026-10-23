@@ -28,6 +28,8 @@ export interface FichaTecnica {
   mesas: Mesa[];
   componentes: Componente[];
   maoDeObraMin: number;
+  /** Custo por peça digitado (produto simples, decisão 107): vale como está, sem calcular pela ficha. */
+  custoInformado?: number;
 }
 
 /** custo_hora_máquina = valor_pago ÷ vida_útil_horas + manutenção_por_hora */
@@ -93,6 +95,8 @@ export interface ComposicaoCusto {
   maoDeObra: number;
   total: number;
   avisos: string[];
+  /** O total é o custo digitado no produto (as partes ficam em zero). */
+  informado?: boolean;
 }
 
 /**
@@ -101,6 +105,11 @@ export interface ComposicaoCusto {
  * custo_unitário = impressão_por_peça + Σ(qtd × custo do componente) + (min ÷ 60) × valor_hora
  */
 export function composicaoCusto(ficha: FichaTecnica, ctx: ContextoCusto): ComposicaoCusto {
+  // Custo digitado (decisão 107): vale como está; a ficha só serve para a baixa do filamento.
+  if (ficha.custoInformado != null && Number.isFinite(ficha.custoInformado) && ficha.custoInformado >= 0) {
+    const total = ficha.custoInformado;
+    return { material: 0, energia: 0, maquina: 0, falhas: 0, impressao: 0, componentes: 0, maoDeObra: 0, total, avisos: [], informado: true };
+  }
   const avisos: string[] = [];
   let material = 0;
   let energia = 0;
@@ -287,4 +296,16 @@ export function statusMargem(precoCentavos: Cents, custoUnit: number, canais: Ca
   if (s.perdeEm.length || s.linhas.some((l) => l.abaixoMinima)) return 'prejuizo';
   if (s.piorMargemPct < custos.margemDesejadaPct - 0.05) return 'atencao';
   return 'ok';
+}
+
+// ---------------------------------------------------------------- Por peça (Calculadora -> produto, decisão 107)
+
+/** Gramas de filamento por peça, somando todas as mesas e cores da ficha. */
+export function gramasPorPeca(ficha: Pick<FichaTecnica, 'mesas'>): number {
+  return round4(ficha.mesas.reduce((s, m) => s + m.filamentos.reduce((g, f) => g + (f.gramas || 0), 0) / (m.pecasPorMesa > 0 ? m.pecasPorMesa : 1), 0));
+}
+
+/** Tempo de impressão por peça (min, arredondado), somando as mesas. */
+export function tempoPorPeca(ficha: Pick<FichaTecnica, 'mesas'>): number {
+  return Math.round(ficha.mesas.reduce((s, m) => s + (m.tempoMin || 0) / (m.pecasPorMesa > 0 ? m.pecasPorMesa : 1), 0));
 }

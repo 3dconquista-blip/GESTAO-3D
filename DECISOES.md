@@ -355,3 +355,19 @@ Registro das escolhas feitas onde a especificação não define, ou deixa a crit
     em Relatórios > Resultado > Gastos avulsos. As descrições usadas por último viram atalhos. Entram no lucro do
     período como "(−) Gastos avulsos" (no Início, nos Relatórios e no CSV do resultado), além dos custos fixos do mês.
     "Desfazer" cancela o gasto, que continua guardado. Versões antigas do app ignoram a lista nova.
+
+## Produto simples e Calculadora de custo (23/10/2026)
+
+107. **Produto só com o básico; a conta detalhada vai para a Calculadora.** O cadastro do produto pede nome, custo por
+    peça, gramas de filamento por peça (e o tipo, só com 2 ou mais tipos) e o preço (com o sugerido a partir do custo).
+    Categoria, mínimo, margem, foto, tempo por peça (opcional, só para "O que imprimir"), insumos que saem do estoque,
+    licença e preço por canal ficam em "Mais detalhes". O custo digitado (`custoInformado`) vale em todo o app (preço
+    sugerido, margens, produção, pedidos, acertos e relatórios) e não muda sozinho com o preço do filamento; sem ele, o
+    campo usa só o filamento (gramas × média do kg do tipo) e diz isso. A ficha do produto simples é uma "mesa" de 1
+    peça com as gramas por peça (para a baixa do filamento e a escolha da cor na produção), sem impressora nem tempo
+    obrigatórios; produção e "O que imprimir" falam em peças, não em mesas. A **Calculadora de custo** volta (aba do
+    Estoque, Mais e menu lateral) para a conta detalhada: mesas, peças por mesa, tempo, impressora, gramas, tipo,
+    insumos e mão de obra, ou "Importar do fatiador". Mostra custo, gramas e tempo por peça e manda o resultado para
+    um produto novo ("Criar produto com este custo") ou existente ("Usar"); a conta fica guardada no aparelho.
+    Produtos antigos com ficha detalhada continuam calculando pela ficha até o dono mudar o custo ou as gramas.
+    Revisa a decisão 92.

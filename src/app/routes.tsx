@@ -15,6 +15,7 @@ import { Movimentacoes } from '../features/estoque/Movimentacoes.tsx';
 import { RegistrarProducao } from '../features/estoque/RegistrarProducao.tsx';
 import { CompraMaterial } from '../features/estoque/CompraMaterial.tsx';
 import { LancarGasto } from '../features/gastos/LancarGasto.tsx';
+import { Calculadora } from '../features/precos/Calculadora.tsx';
 import { AjusteEstoque } from '../features/estoque/AjusteEstoque.tsx';
 import { TelaParceiros } from '../features/parceiros/Parceiros.tsx';
 import { ParceiroForm } from '../features/parceiros/ParceiroForm.tsx';
@@ -66,6 +67,7 @@ export const ROTAS: Rota[] = [
   { padrao: '/estoque/ajuste', tela: AjusteEstoque, secao: 'estoque' },
   { padrao: '/producao/nova', tela: RegistrarProducao, secao: 'estoque' },
   { padrao: '/compra', tela: CompraMaterial, secao: 'estoque' },
+  { padrao: '/calculadora', tela: Calculadora, secao: 'estoque' },
   { padrao: '/gastos/novo', tela: LancarGasto, secao: 'mais' },
 
   // Parceiros

@@ -1,20 +1,21 @@
-// Cadastro e edição de produto (7.1), enxuto (decisão 86): nome, ficha (peças, tempo, tipo de filamento e gramas)
-// e preço. O produto não tem cor: a cor é escolhida em cada produção (decisão 85). O resto (categoria, mínimo,
-// margem, foto, componentes, mão de obra, licença, composição do custo e tabela por canal) fica em "Mais detalhes".
+// Cadastro e edição de produto, simples (decisão 107): nome, custo por peça, gramas de filamento por peça e preço.
+// O custo detalhado (mesas, tempo, impressora, energia, mão de obra) é feito na Calculadora, que manda o custo e as
+// gramas para cá (?custo=&gramas=&tipo=&tempo=&nome=). O produto não tem cor: a cor é escolhida em cada produção
+// (decisão 85). Categoria, mínimo, margem, foto, tempo, insumos, licença e preço por canal ficam em "Mais detalhes".
 import { useState } from 'preact/hooks';
 import { navegar, type TelaProps } from '../../app/router.ts';
 import { db } from '../../data/db.ts';
 import { useDb } from '../../data/hooks.ts';
-import { materiaisAtivos, minimoDoProduto } from '../../data/selectors.ts';
-import type { Cents, LicencaVenda } from '../../data/types.ts';
+import { contextoCusto, custoProduto, minimoDoProduto } from '../../data/selectors.ts';
+import type { Cents, LicencaVenda, Mesa, Produto, TipoFilamento } from '../../data/types.ts';
+import { TIPO_PADRAO, TIPOS_FILAMENTO, tipoDoSlot } from '../../domain/filamento.ts';
 import type { FichaTecnica } from '../../domain/pricing.ts';
-import { custosComMargem, etiquetaSugerida, simular } from '../../domain/pricing.ts';
+import { custosComMargem, etiquetaSugerida, gramasPorPeca, simular, tempoPorPeca } from '../../domain/pricing.ts';
 import { formatBRL, formatPct, formatReais } from '../../lib/format.ts';
 import { round4 } from '../../lib/money.ts';
 import { salvarProduto } from '../../services/produtos.ts';
 import { Aviso, Botao, Campo, Cartao, Dinheiro, Escolha, Foto, MaisDetalhes, Numero, Pagina, Segmentado, Texto, Vazio, avisar } from '../../ui/index.ts';
-import { ComponentesEditor, ComposicaoCustoView, FichaTecnicaEditor, PrecosSugeridos, TabelaSimulador, fichaVazia, useComposicao } from '../precos/componentes.tsx';
-import { ImportarFatiador, fichaDaImportacao } from '../precos/ImportarFatiador.tsx';
+import { ComponentesEditor, PrecosSugeridos, TabelaSimulador, tiposDisponiveis } from '../precos/componentes.tsx';
 
 interface Dados {
   nome: string;
@@ -38,11 +39,22 @@ function categoriaSugerida(): string {
   return ultimo?.categoria || db.config.categorias[0] || 'Outro';
 }
 
-export function ProdutoForm({ params }: TelaProps) {
+/** Ficha "simples": uma mesa de 1 peça com um filamento (gramas por peça). As outras vêm do cadastro detalhado antigo. */
+function fichaSimples(p: Pick<Produto, 'mesas'>): boolean {
+  return p.mesas.length === 1 && p.mesas[0].pecasPorMesa === 1 && p.mesas[0].filamentos.length <= 1;
+}
+
+const numeroDaQuery = (v: string | null): number | null => (v != null && v !== '' && Number.isFinite(Number(v)) ? Number(v) : null);
+
+export function ProdutoForm({ params, query }: TelaProps) {
   useDb();
   const atual = params.id ? db.get('produtos', params.id) : undefined;
+  const material = (id: string) => db.get('materiais', id);
+  // Valores que vieram da Calculadora (ou do produto atual).
+  const daCalculadora = query.get('custo') != null;
+  const tipos = tiposDisponiveis();
   const [d, setD] = useState<Dados>(() => ({
-    nome: atual?.nome ?? '',
+    nome: atual?.nome ?? query.get('nome') ?? '',
     categoria: atual?.categoria ?? categoriaSugerida(),
     fotoDataUrl: atual?.fotoDataUrl,
     estoqueMinimo: atual?.estoqueMinimo ?? 0,
@@ -52,14 +64,21 @@ export function ProdutoForm({ params }: TelaProps) {
     precoEtiquetaCentavos: atual?.precoEtiquetaCentavos ?? null,
     margemPct: atual?.margemPct ?? null,
   }));
-  const [ficha, setFicha] = useState<FichaTecnica>(() =>
-    atual
-      ? { mesas: atual.mesas.map((m) => ({ ...m, filamentos: m.filamentos.map((f) => ({ ...f })) })), componentes: atual.componentes.map((c) => ({ ...c })), maoDeObraMin: atual.maoDeObraMin }
-      : fichaVazia('produto'),
-  );
-  // Peça multicolor ou em várias mesas: mostra os botões de mais mesas/cores na ficha.
-  const [fichaAvancada, setFichaAvancada] = useState(() => !!atual && (atual.mesas.length > 1 || atual.mesas.some((m) => m.filamentos.length > 1)));
-  const comp = useComposicao(ficha);
+  const [custo, setCusto] = useState<number | null>(() => numeroDaQuery(query.get('custo')) ?? (atual ? round4(atual.custoInformado ?? custoProduto(atual.id)) : null));
+  const [gramas, setGramas] = useState<number | null>(() => numeroDaQuery(query.get('gramas')) ?? (atual ? gramasPorPeca(atual) : null));
+  const [tempo, setTempo] = useState<number | null>(() => numeroDaQuery(query.get('tempo')) ?? (atual ? tempoPorPeca(atual) || null : null));
+  const [tipo, setTipo] = useState<TipoFilamento>(() => {
+    const t = query.get('tipo') as TipoFilamento | null;
+    if (t && TIPOS_FILAMENTO.includes(t)) return t;
+    const f = atual?.mesas[0]?.filamentos[0];
+    return f ? tipoDoSlot(f, material) : (tipos[0] ?? TIPO_PADRAO);
+  });
+  // Insumos que saem do estoque a cada peça (argola, saquinho); o custo deles já está no custo por peça.
+  const [ficha, setFicha] = useState<FichaTecnica>(() => ({ mesas: [], componentes: atual?.componentes.map((c) => ({ ...c })) ?? [], maoDeObraMin: atual?.maoDeObraMin ?? 0 }));
+  // Produto antigo com ficha detalhada: só troca a ficha se as gramas, o tipo ou o tempo mudarem.
+  const detalhada = !!atual && !fichaSimples(atual);
+  const [mudouFicha, setMudouFicha] = useState(daCalculadora);
+  const [mudouCusto, setMudouCusto] = useState(daCalculadora || !!atual?.custoInformado);
 
   if ((params.id && !atual) || atual?.excluido) {
     return (
@@ -70,19 +89,26 @@ export function ProdutoForm({ params }: TelaProps) {
   }
 
   const mudar = (patch: Partial<Dados>) => setD({ ...d, ...patch });
-  const semImpressora = db.all('impressoras').filter((i) => i.ativa).length === 0;
-  const semFilamento = materiaisAtivos('filamento').length === 0;
   const margemPadrao = db.config.custos.margemDesejadaPct;
-  // Mínimo automático de hoje (produto novo não tem vendas: 0).
   const minimoAuto = atual ? minimoDoProduto({ id: atual.id, estoqueMinimo: 0 }).minimo : 0;
+  // Sem custo digitado: só o filamento (gramas × média do kg do tipo), como estimativa mínima.
+  const custoKg = contextoCusto().custoKgTipo?.(tipo);
+  const soFilamento = gramas && custoKg ? round4((gramas * custoKg) / 1000) : null;
+  const custoEfetivo = custo ?? soFilamento ?? 0;
   const custos = custosComMargem(db.config.custos, d.margemPct);
-  const sugerida = comp.total > 0 ? etiquetaSugerida(comp.total, db.config.canais, custos) : null;
+  const sugerida = custoEfetivo > 0 ? etiquetaSugerida(custoEfetivo, db.config.canais, custos) : null;
   const precoUsado = d.precoEtiquetaCentavos ?? sugerida;
-  const sim = precoUsado && comp.total > 0 ? simular(precoUsado, round4(comp.total), db.config.canais, custos) : null;
+  const sim = precoUsado && custoEfetivo > 0 ? simular(precoUsado, round4(custoEfetivo), db.config.canais, custos) : null;
   const abaixoMinima = sim ? sim.linhas.filter((l) => l.abaixoMinima && !l.prejuizo).map((l) => l.canal.nome) : [];
 
   const salvar = () => {
     try {
+      const manterFicha = detalhada && !mudouFicha;
+      const mesas: Mesa[] = manterFicha
+        ? atual!.mesas
+        : [{ id: atual?.mesas[0]?.id ?? '', pecasPorMesa: 1, tempoMin: tempo ?? 0, impressoraId: atual?.mesas[0]?.impressoraId ?? '', filamentos: [{ tipo, gramas: gramas ?? 0 }] }];
+      // Ficha detalhada antiga com o custo sem mexer: continua calculando pela ficha.
+      const custoInformado = manterFicha && !mudouCusto ? null : custoEfetivo;
       const p = salvarProduto({
         id: atual?.id,
         nome: d.nome,
@@ -95,8 +121,9 @@ export function ProdutoForm({ params }: TelaProps) {
         precoEtiquetaCentavos: d.precoEtiquetaCentavos ?? undefined,
         margemPct: d.margemPct,
         maoDeObraMin: ficha.maoDeObraMin,
-        mesas: ficha.mesas,
+        mesas,
         componentes: ficha.componentes,
+        custoInformado,
       });
       avisar(atual ? 'Produto salvo' : `Produto cadastrado (${p.codigo})`);
       navegar(`/estoque/produtos/${p.id}`, { substituir: true });
@@ -109,52 +136,69 @@ export function ProdutoForm({ params }: TelaProps) {
     d.categoria,
     d.estoqueMinimo ? `mínimo ${d.estoqueMinimo}` : '',
     d.margemPct != null ? `margem ${formatPct(d.margemPct, 0)}` : '',
-    ficha.componentes.length ? `${ficha.componentes.length} componente(s)` : '',
+    tempo ? `${tempo} min por peça` : '',
+    ficha.componentes.length ? `${ficha.componentes.length} insumo(s)` : '',
   ]
     .filter(Boolean)
     .join(' · ');
 
   return (
     <Pagina titulo={atual ? `Editar ${atual.nome}` : 'Novo produto'} subtitulo={atual?.codigo} voltarPara={atual ? `/estoque/produtos/${atual.id}` : '/estoque/produtos'} largura="estreita">
-      {(semImpressora || semFilamento) && (
-        <Aviso tom="atencao" titulo="Falta cadastro para calcular o custo">
-          {semImpressora && (
-            <div>
-              Nenhuma impressora — <a href="#/config/impressoras/novo">cadastrar impressora</a>.
-            </div>
-          )}
-          {semFilamento && (
-            <div>
-              Nenhum filamento — <a href="#/estoque/materiais/novo?tipo=filamento">cadastrar filamento</a>.
-            </div>
-          )}
-        </Aviso>
-      )}
-
+      {daCalculadora && <Aviso tom="info">Custo e gramas vieram da Calculadora. Confira e salve.</Aviso>}
       <Cartao>
         <div class="formulario">
           <Campo rotulo="Nome" obrigatorio>
-            <Texto value={d.nome} onInput={(v) => mudar({ nome: v })} placeholder="Ex.: Chaveiro Kettlebell (sem a cor)" autoFocus={!atual} />
+            <Texto value={d.nome} onInput={(v) => mudar({ nome: v })} placeholder="Ex.: Chaveiro Kettlebell (sem a cor)" autoFocus={!atual && !d.nome} />
           </Campo>
-          <ImportarFatiador
-            onImportar={(imp) => {
-              setFicha(fichaDaImportacao(imp, ficha));
-              if (imp.mesas.length > 1 || imp.mesas.some((m) => m.filamentos.length > 1)) setFichaAvancada(true);
-              if (!d.nome.trim() && imp.nome) mudar({ nome: imp.nome });
-            }}
-          />
-          <FichaTecnicaEditor valor={ficha} onChange={setFicha} modo="produto" mostrarExtras={fichaAvancada} />
+          <div class="campos-2">
+            <Campo
+              rotulo="Custo por peça"
+              dica={
+                <>
+                  {custo == null && soFilamento ? `Vazio = só o filamento (${formatReais(soFilamento)}). ` : ''}
+                  <a href="#/calculadora">Calcular na Calculadora</a>
+                </>
+              }
+            >
+              <Numero
+                value={custo}
+                onChange={(v) => {
+                  setCusto(v);
+                  setMudouCusto(true);
+                }}
+                decimais={2}
+                min={0}
+                prefixo="R$"
+                placeholder={soFilamento ? soFilamento.toFixed(2).replace('.', ',') : '0,00'}
+              />
+            </Campo>
+            <Campo rotulo="Gramas de filamento por peça" dica={detalhada && !mudouFicha ? `Da ficha detalhada (${atual!.mesas.length} mesa(s)); mudar troca a ficha por gramas por peça` : 'Sai do carretel a cada peça produzida'}>
+              <Numero
+                value={gramas}
+                onChange={(v) => {
+                  setGramas(v);
+                  setMudouFicha(true);
+                }}
+                decimais={1}
+                min={0}
+                sufixo={tipos.length > 1 ? 'g' : `g de ${tipo}`}
+              />
+            </Campo>
+          </div>
+          {tipos.length > 1 && (
+            <Campo rotulo="Tipo de filamento">
+              <Segmentado
+                value={tipo}
+                onChange={(v) => {
+                  setTipo(v);
+                  setMudouFicha(true);
+                }}
+                opcoes={tipos.map((t) => ({ valor: t, rotulo: t }))}
+              />
+            </Campo>
+          )}
 
           <div class="prod-preco">
-            <div class="prod-custo">
-              <span>Custo por peça</span>
-              <strong>{comp.total > 0 ? formatReais(comp.total) : '—'}</strong>
-            </div>
-            {comp.avisos.map((a) => (
-              <Aviso key={a} tom="atencao">
-                {a}
-              </Aviso>
-            ))}
             {sugerida != null && (
               <div class="precos-etiqueta">
                 <span>
@@ -178,7 +222,7 @@ export function ProdutoForm({ params }: TelaProps) {
         </div>
       </Cartao>
 
-      <MaisDetalhes resumo={resumoDetalhes}>
+      <MaisDetalhes resumo={resumoDetalhes || undefined}>
         <div class="campos-2">
           <Campo rotulo="Categoria">
             <Escolha value={d.categoria} onChange={(v) => mudar({ categoria: v })} opcoes={db.config.categorias.map((c) => ({ valor: c, rotulo: c }))} />
@@ -189,19 +233,26 @@ export function ProdutoForm({ params }: TelaProps) {
           <Campo rotulo="Margem de lucro deste produto" dica={d.margemPct == null ? `Vazio = a padrão (${formatPct(margemPadrao, 0)})` : 'Os preços sugeridos usam esta margem'}>
             <Numero value={d.margemPct} onChange={(v) => mudar({ margemPct: v })} min={0} max={99} decimais={1} sufixo="%" placeholder={`${margemPadrao} (padrão)`} />
           </Campo>
+          <Campo rotulo="Tempo de impressão por peça" dica="Opcional: só para estimar o tempo em &quot;O que imprimir&quot;">
+            <Numero
+              value={tempo}
+              onChange={(v) => {
+                setTempo(v);
+                setMudouFicha(true);
+              }}
+              decimais={0}
+              min={0}
+              sufixo="min"
+            />
+          </Campo>
           <Campo rotulo="Foto">
             <Foto value={d.fotoDataUrl} onChange={(v) => mudar({ fotoDataUrl: v })} />
           </Campo>
         </div>
 
-        {!fichaAvancada && (
-          <div>
-            <Botao pequeno variante="fantasma" icone="camadas" onClick={() => setFichaAvancada(true)}>
-              Peça multicolor ou em mais de uma mesa
-            </Botao>
-          </div>
-        )}
-        <ComponentesEditor valor={ficha} onChange={setFicha} />
+        <strong>Insumos que saem do estoque a cada peça</strong>
+        <small class="muted">Ex.: argola e saquinho. O custo deles já está no custo por peça; aqui é só para baixar do estoque.</small>
+        <ComponentesEditor valor={ficha} onChange={setFicha} mostrarMaoDeObra={false} />
 
         <Campo rotulo="Origem do modelo">
           <Segmentado
@@ -232,19 +283,17 @@ export function ProdutoForm({ params }: TelaProps) {
           </div>
         )}
 
-        {comp.total > 0 && (
+        {custoEfetivo > 0 && (
           <>
-            <strong>Composição do custo</strong>
-            <ComposicaoCustoView composicao={comp} />
             <strong>Preço por canal</strong>
-            <PrecosSugeridos custoUnit={comp.total} margemPct={d.margemPct} />
-            {precoUsado != null && precoUsado > 0 && <TabelaSimulador custoUnit={comp.total} precoCentavos={precoUsado} margemPct={d.margemPct} />}
+            <PrecosSugeridos custoUnit={custoEfetivo} margemPct={d.margemPct} />
+            {precoUsado != null && precoUsado > 0 && <TabelaSimulador custoUnit={custoEfetivo} precoCentavos={precoUsado} margemPct={d.margemPct} />}
           </>
         )}
       </MaisDetalhes>
 
       <div class="barra-acoes-fixa">
-        <Botao variante="primario" icone="check" onClick={salvar}>
+        <Botao variante="primario" icone="check" onClick={salvar} disabled={!d.nome.trim() || !(gramas && gramas > 0) || custoEfetivo <= 0}>
           Salvar produto
         </Botao>
       </div>

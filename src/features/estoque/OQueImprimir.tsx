@@ -27,6 +27,8 @@ function CartaoItem({ item }: { item: ItemImprimir }) {
   const p = item.produto;
   const mesas = item.mesas[0]?.mesas ?? 1;
   const qtd = mesas * (item.mesas[0]?.pecasPorMesa ?? 1);
+  // Produto simples (custo da Calculadora): fala em peças, sem mesas.
+  const simples = p.mesas.length === 1 && p.mesas[0].pecasPorMesa === 1;
   const imprimi = () => {
     try {
       const prod = registrarProducao({ produtoId: p.id, qtdBoa: qtd });
@@ -63,6 +65,15 @@ function CartaoItem({ item }: { item: ItemImprimir }) {
           {item.reposicaoPrevista > 0 && <span>Parceiros: {formatQtd(item.reposicaoPrevista, 1)}</span>}
           {item.reservado > 0 && <span>Pedidos: {formatQtd(item.reservado)}</span>}
         </div>
+        {simples ? (
+          item.tempoTotalMin > 0 && (
+            <div class="imp-mesas">
+              <span>
+                Tempo estimado: <strong>{formatDuracao(item.tempoTotalMin)}</strong>
+              </span>
+            </div>
+          )
+        ) : (
         <div class="imp-mesas">
           {item.mesas.map((m, i) => (
             <span key={m.mesaId}>
@@ -77,6 +88,7 @@ function CartaoItem({ item }: { item: ItemImprimir }) {
             Tempo total: <strong>{formatDuracao(item.tempoTotalMin)}</strong>
           </span>
         </div>
+        )}
         <div class="imp-filamentos">
           {item.filamentoNecessario.map((f) => (
             <span key={f.tipo} class={f.suficiente ? '' : 'txt-ruim'}>

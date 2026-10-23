@@ -1,7 +1,7 @@
 {
   "name": "octa",
   "private": true,
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "OCTA - gestão para negócio de impressão 3D (PWA)",
   "type": "module",
   "scripts": {

@@ -5,6 +5,24 @@ Formato: [vX.Y.Z] - AAAA-MM-DD
 
 ---
 
+## [v2.2.0] - 2026-10-23
+
+Cadastro de produto rápido e a conta detalhada numa Calculadora à parte (decisão 107).
+
+### Adicionado
+- Calculadora de custo (aba do Estoque, Mais e menu lateral): mesas, peças por mesa, tempo, impressora, gramas, tipo,
+  insumos e mão de obra, ou "Importar do fatiador". Mostra custo, gramas e tempo por peça e manda o resultado para um
+  produto novo ("Criar produto com este custo") ou existente ("Usar"). A conta fica guardada no aparelho
+
+### Alterado
+- Cadastro de produto só com nome, custo por peça, gramas de filamento por peça e preço (com o sugerido). Categoria,
+  mínimo, margem, foto, tempo, insumos, licença e preço por canal ficam em "Mais detalhes"
+- O custo digitado vale em todo o app (preço sugerido, margens, produção, pedidos, acertos e relatórios); produtos
+  antigos com ficha detalhada continuam calculando pela ficha até o custo ou as gramas mudarem
+- Produção e "O que imprimir" falam em peças (não em mesas) para os produtos com custo da Calculadora
+
+---
+
 ## [v2.1.0] - 2026-10-21
 
 Menos digitação no dia a dia (decisões 102 a 106).

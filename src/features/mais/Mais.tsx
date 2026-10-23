@@ -1,4 +1,4 @@
-// "Mais": Venda rápida, Vendas, Clientes, Relatórios, Configurações.
+// "Mais": Venda rápida, Vendas, Calculadora de custo, Clientes, Relatórios, Configurações.
 import type { TelaProps } from '../../app/router.ts';
 import { useDb } from '../../data/hooks.ts';
 import { ItemLista, Lista, Pagina } from '../../ui/index.ts';
@@ -10,6 +10,7 @@ export function Mais(_props: TelaProps) {
       <Lista>
         <ItemLista icone="carrinho" titulo="Venda rápida" subtitulo="Vender direto, sai do estoque de Casa" href="/venda" />
         <ItemLista icone="dinheiro" titulo="Vendas" subtitulo="Histórico das vendas diretas" href="/vendas" />
+        <ItemLista icone="etiqueta" titulo="Calculadora de custo" subtitulo="Calcule o custo de uma peça e mande para o produto" href="/calculadora" />
         <ItemLista icone="usuario" titulo="Clientes" subtitulo="Contatos, pedidos e compras" href="/clientes" />
         <ItemLista icone="grafico" titulo="Relatórios" subtitulo="Vendas, lucro, parceiros e materiais" href="/relatorios" />
         <ItemLista icone="config" titulo="Configurações" subtitulo="Empresa, custos, impressoras, mensagens e backup" href="/config" />

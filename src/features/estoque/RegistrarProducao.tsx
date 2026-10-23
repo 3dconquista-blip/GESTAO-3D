@@ -45,6 +45,8 @@ export function RegistrarProducao({ query }: TelaProps) {
     if (id) cores[p.chave] = id;
   }
   const total = pecasPorMesas(mesas ?? 0, porMesa ?? 0);
+  // Produto simples (custo da Calculadora, 1 peça por "mesa"): conta em peças, sem falar de mesas.
+  const simples = !!produto && produto.mesas.length === 1 && produto.mesas[0].pecasPorMesa === 1;
   const qtdPerdida = Math.min(Math.max(0, perdidas ?? 0), total);
   const qtdBoa = Math.max(0, total - qtdPerdida);
 
@@ -144,13 +146,19 @@ export function RegistrarProducao({ query }: TelaProps) {
             </Campo>
           ))}
 
-          <Campo rotulo="Mesas impressas">
+          <Campo rotulo={simples ? 'Peças impressas' : 'Mesas impressas'}>
             <Numero value={mesas} onChange={setMesas} decimais={0} min={0} stepper />
           </Campo>
-          <p class="prod-total">
-            {formatQtd(mesas ?? 0)} mesa(s) de {formatQtd(porMesa ?? 0)} = <strong>{formatQtd(total)} peças</strong>
-            {qtdPerdida > 0 && ` (${formatQtd(qtdPerdida)} perdida(s), ${formatQtd(qtdBoa)} boas)`}
-          </p>
+          {(!simples || qtdPerdida > 0) && (
+            <p class="prod-total">
+              {!simples && (
+                <>
+                  {formatQtd(mesas ?? 0)} mesa(s) de {formatQtd(porMesa ?? 0)} = <strong>{formatQtd(total)} peças</strong>
+                </>
+              )}
+              {qtdPerdida > 0 && ` (${formatQtd(qtdPerdida)} perdida(s), ${formatQtd(qtdBoa)} boas)`}
+            </p>
+          )}
           {previa && (
             <p class="muted prod-baixa">
               Entram {formatQtd(previa.entramEmCasa)} em Casa · baixa {previa.consumo.map((c) => `${qtdConsumo(c, c.quantidade)} de ${c.nome}`).join(', ')}
@@ -169,9 +177,11 @@ export function RegistrarProducao({ query }: TelaProps) {
           <Campo rotulo="Data">
             <Data value={data} onInput={setData} max={hojeISO()} />
           </Campo>
-          <Campo rotulo="Peças por mesa" dica={produto ? `Ficha: ${produto.mesas[0]?.pecasPorMesa ?? 1} por mesa` : undefined}>
-            <Numero value={porMesa} onChange={setPorMesa} decimais={0} min={1} stepper />
-          </Campo>
+          {!simples && (
+            <Campo rotulo="Peças por mesa" dica={produto ? `Ficha: ${produto.mesas[0]?.pecasPorMesa ?? 1} por mesa` : undefined}>
+              <Numero value={porMesa} onChange={setPorMesa} decimais={0} min={1} stepper />
+            </Campo>
+          )}
         </div>
         <strong>Últimas produções</strong>
         <Tabela colunas={colunas} linhas={recentes} chave={(p) => p.id} vazio={<p class="muted">Nenhuma produção registrada ainda.</p>} />

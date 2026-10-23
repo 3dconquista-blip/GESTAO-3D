@@ -66,6 +66,11 @@ export interface DadosProduto {
   licencaVenda?: LicencaVenda;
   /** Margem de lucro própria (%). null = usar a margem padrão da configuração; ausente na edição = mantém. */
   margemPct?: number | null;
+  /**
+   * Custo por peça digitado (reais), da Calculadora (decisão 107). Com ele, a ficha precisa só das gramas por peça
+   * (impressora e tempo ficam opcionais). null = voltar a calcular pela ficha; ausente na edição = mantém.
+   */
+  custoInformado?: number | null;
   arquivado?: boolean;
 }
 
@@ -168,21 +173,23 @@ function categoriaPadraoTx(t: Pick<Tx, 'all'>): string {
   return ultimo?.categoria || db.config.categorias[0] || 'Outro';
 }
 
-function validarMesas(t: Tx, mesas: MesaEntrada[] | undefined): Mesa[] {
+function validarMesas(t: Tx, mesas: MesaEntrada[] | undefined, simples = false): Mesa[] {
   if (!Array.isArray(mesas) || mesas.length === 0) {
     throw new ErroNegocio('Adicione pelo menos uma mesa na ficha técnica.');
   }
   const ids = new Set<ID>();
   return mesas.map((m, i) => {
     const rotulo = `Mesa ${i + 1}`;
-    const impressoraId = m.impressoraId || impressoraPadraoTx(t);
-    if (!impressoraId || !t.get('impressoras', impressoraId)) {
+    const impressoraId = m.impressoraId || impressoraPadraoTx(t) || '';
+    // Produto com custo digitado: a impressora não entra no custo, então pode faltar.
+    const podeFaltar = simples && !impressoraId;
+    if (!podeFaltar && (!impressoraId || !t.get('impressoras', impressoraId))) {
       throw new ErroNegocio(t.all('impressoras').some((x) => x.ativa) ? `${rotulo}: escolha a impressora.` : 'Cadastre uma impressora em Configurações antes do produto.');
     }
     if (!Number.isInteger(m.pecasPorMesa) || m.pecasPorMesa < 1) {
       throw new ErroNegocio(`${rotulo}: "Peças desta mesa" precisa ser um número inteiro, 1 ou mais.`);
     }
-    if (!numeroValido(m.tempoMin) || m.tempoMin <= 0) {
+    if (!numeroValido(m.tempoMin) || m.tempoMin < 0 || (!simples && m.tempoMin === 0)) {
       throw new ErroNegocio(`${rotulo}: informe o tempo da mesa.`);
     }
     if (!Array.isArray(m.filamentos) || m.filamentos.length === 0) {
@@ -196,7 +203,7 @@ function validarMesas(t: Tx, mesas: MesaEntrada[] | undefined): Mesa[] {
       const tipo = f.tipo ?? mat?.material ?? TIPO_PADRAO;
       if (!TIPOS_FILAMENTO.includes(tipo)) throw new ErroNegocio(`${rotulo}: tipo de filamento inválido.`);
       if (!numeroValido(f.gramas) || f.gramas <= 0) {
-        throw new ErroNegocio(`${rotulo}: informe as gramas de ${tipo} (do fatiador, da mesa inteira).`);
+        throw new ErroNegocio(simples ? `Informe as gramas de ${tipo} por peça.` : `${rotulo}: informe as gramas de ${tipo} (do fatiador, da mesa inteira).`);
       }
       return mat ? { tipo, materialId: mat.id, gramas: f.gramas } : { tipo, gramas: f.gramas };
     });
@@ -262,13 +269,17 @@ export function salvarProdutoTx(t: Tx, dados: DadosProduto): Produto {
   }
   if (origemModelo === 'terceiro' && !licencaVenda) licencaVenda = 'nao_sei';
 
-  const mesas = validarMesas(t, d.mesas);
+  const custoInformado = d.custoInformado == null ? undefined : d.custoInformado;
+  if (custoInformado != null && (!numeroValido(custoInformado) || custoInformado < 0)) {
+    throw new ErroNegocio('O custo por peça não pode ser negativo.');
+  }
+  const mesas = validarMesas(t, d.mesas, custoInformado != null);
   const componentes = validarComponentes(t, d.componentes);
   const margemPct = validarMargem(d.margemPct);
 
   let precoEtiquetaCentavos = d.precoEtiquetaCentavos;
   if (precoEtiquetaCentavos == null) {
-    const custo = composicaoCusto({ mesas, componentes, maoDeObraMin }, contextoTx(t)).total;
+    const custo = composicaoCusto({ mesas, componentes, maoDeObraMin, custoInformado }, contextoTx(t)).total;
     precoEtiquetaCentavos = etiquetaSugerida(custo, db.config.canais, custosComMargem(db.config.custos, margemPct)) ?? 0;
   }
   if (!Number.isInteger(precoEtiquetaCentavos) || precoEtiquetaCentavos < 0) {
@@ -288,6 +299,7 @@ export function salvarProdutoTx(t: Tx, dados: DadosProduto): Produto {
     linkModelo: texto(d.linkModelo) || undefined,
     licencaVenda,
     margemPct: margemPct ?? undefined,
+    custoInformado: custoInformado != null ? round4(custoInformado) : undefined,
     arquivado: d.arquivado ?? false,
   };
   if (atual) return t.update('produtos', atual.id, campos);
@@ -335,6 +347,7 @@ export function copiarProduto(produtoId: ID): Produto {
       linkModelo: orig.linkModelo,
       licencaVenda: orig.licencaVenda,
       margemPct: orig.margemPct ?? null,
+      custoInformado: orig.custoInformado ?? null,
     });
   });
 }

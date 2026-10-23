@@ -2,7 +2,7 @@
 import { Abas } from '../../ui/index.ts';
 import './estoque.css';
 
-export function EstoqueAbas({ ativa }: { ativa: 'produtos' | 'materiais' | 'imprimir' | 'movimentacoes' }) {
+export function EstoqueAbas({ ativa }: { ativa: 'produtos' | 'materiais' | 'imprimir' | 'calculadora' | 'movimentacoes' }) {
   return (
     <Abas
       ativa={ativa}
@@ -10,6 +10,7 @@ export function EstoqueAbas({ ativa }: { ativa: 'produtos' | 'materiais' | 'impr
         { id: 'produtos', rotulo: 'Produtos', href: '/estoque/produtos' },
         { id: 'materiais', rotulo: 'Materiais', href: '/estoque/materiais' },
         { id: 'imprimir', rotulo: 'O que imprimir', href: '/estoque/imprimir' },
+        { id: 'calculadora', rotulo: 'Calculadora', href: '/calculadora' },
       ]}
     />
   );

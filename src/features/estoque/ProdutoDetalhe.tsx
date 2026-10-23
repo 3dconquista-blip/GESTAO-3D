@@ -8,7 +8,7 @@ import { composicaoProduto, custoProduto, custosDoProduto, margemDoProduto, mini
 import type { LocalId, MovEstoque } from '../../data/types.ts';
 import { CASA, parceiroDoLocal } from '../../data/types.ts';
 import { tipoDoSlot } from '../../domain/filamento.ts';
-import { simular } from '../../domain/pricing.ts';
+import { gramasPorPeca, simular, tempoPorPeca } from '../../domain/pricing.ts';
 import { formatBRL, formatData, formatDuracao, formatGramas, formatPct, formatQtd, formatReais } from '../../lib/format.ts';
 import { alertaLicenca, arquivarProduto, copiarProduto, excluirProduto, previaExclusao, salvarProduto } from '../../services/produtos.ts';
 import { Aviso, Botao, Cartao, Indicador, Linha, MaisDetalhes, Pagina, Resumo, Selo, Tabela, Vazio, avisar, confirmar, type Coluna } from '../../ui/index.ts';
@@ -176,27 +176,40 @@ export function ProdutoDetalhe({ params }: TelaProps) {
         </Linha>
       )}
 
-      <MaisDetalhes titulo="Ficha, custo e preço por canal" resumo={`${p.mesas.length} mesa(s) · margem ${formatPct(margemDoProduto(p), 0)}`}>
+      <MaisDetalhes titulo="Ficha, custo e preço por canal" resumo={`${comp?.informado ? 'custo da Calculadora' : `${p.mesas.length} mesa(s)`} · margem ${formatPct(margemDoProduto(p), 0)}`}>
         <div class="est-ficha-topo">
           <FotoProduto p={p} tamanho={48} />
           <div class="est-mesas">
-            {p.mesas.map((m, i) => (
+            {comp?.informado && p.mesas.length === 1 && p.mesas[0].pecasPorMesa === 1 ? (
+              <div class="est-mesa">
+                {formatGramas(gramasPorPeca(p))} de {tipoDoSlot(p.mesas[0].filamentos[0] ?? {}, material)} por peça
+                {tempoPorPeca(p) > 0 && ` · ${formatDuracao(tempoPorPeca(p))} por peça`}
+              </div>
+            ) : (
+            p.mesas.map((m, i) => (
               <div key={m.id} class="est-mesa">
                 <strong>{p.mesas.length > 1 ? `Mesa ${i + 1}: ` : ''}</strong>
                 {m.pecasPorMesa} peça(s) · {formatDuracao(m.tempoMin)} · {m.filamentos.map((f) => `${formatGramas(f.gramas)} de ${tipoDoSlot(f, material)}`).join(' + ') || 'sem filamento'}
                 {db.all('impressoras').filter((x) => x.ativa).length > 1 && ` · ${db.get('impressoras', m.impressoraId)?.nome ?? 'impressora removida'}`}
               </div>
-            ))}
+            ))
+            )}
           </div>
         </div>
         <Resumo
           linhas={[
-            { rotulo: 'Componentes por peça', valor: p.componentes.length ? p.componentes.map((c) => `${formatQtd(c.quantidade)} ${nomeMaterial(c.materialId)}`).join(', ') : 'nenhum' },
-            { rotulo: 'Mão de obra por peça', valor: `${formatQtd(p.maoDeObraMin, 1)} min` },
+            { rotulo: comp?.informado ? 'Insumos por peça' : 'Componentes por peça', valor: p.componentes.length ? p.componentes.map((c) => `${formatQtd(c.quantidade)} ${nomeMaterial(c.materialId)}`).join(', ') : 'nenhum' },
+            comp?.informado ? null : { rotulo: 'Mão de obra por peça', valor: `${formatQtd(p.maoDeObraMin, 1)} min` },
             { rotulo: 'Margem de lucro', valor: p.margemPct != null ? `${formatPct(p.margemPct)} (deste produto)` : `${formatPct(margemDoProduto(p))} (padrão)` },
           ]}
         />
-        {comp && <ComposicaoCustoView composicao={comp} />}
+        {comp?.informado ? (
+          <p class="muted">
+            Custo por peça informado: <strong>{formatReais(comp.total)}</strong> (da Calculadora). <a href="#/calculadora">Recalcular</a>
+          </p>
+        ) : (
+          comp && <ComposicaoCustoView composicao={comp} />
+        )}
         {/* Custo com precisão total, como no Exemplo A (preço exato 4,9747; os centavos não mudam). */}
         <SimuladorPreco
           key={`${p.id}-${p.precoEtiquetaCentavos}-${custo}-${p.margemPct}`}

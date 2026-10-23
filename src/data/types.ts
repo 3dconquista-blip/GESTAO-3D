@@ -203,6 +203,11 @@ export interface Produto extends Base {
   licencaVenda?: LicencaVenda;
   /** Margem de lucro própria deste produto (%). Sem ela, vale a margem desejada da configuração. */
   margemPct?: number;
+  /**
+   * Custo por peça digitado pelo dono (reais, 4 casas), vindo da Calculadora (decisão 107). Com ele, o custo não é
+   * calculado pela ficha: a ficha guarda só as gramas por peça, para a baixa do filamento na produção.
+   */
+  custoInformado?: number;
   arquivado: boolean;
   /** Excluído pelo dono: some do app, mas as movimentações e vendas antigas continuam apontando para ele. */
   excluido?: boolean;

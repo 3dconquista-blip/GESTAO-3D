@@ -63,6 +63,7 @@ function MenuLateral({ secao, empresa }: { secao: Secao | null; empresa: string 
       <div class="menu-sub">
         <a href="#/venda">Venda rápida</a>
         <a href="#/vendas">Vendas</a>
+        <a href="#/calculadora">Calculadora de custo</a>
         <a href="#/clientes">Clientes</a>
         <a href="#/relatorios">Relatórios</a>
         <a href="#/config">Configurações</a>
