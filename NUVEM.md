@@ -1,11 +1,10 @@
 # Sincronizar o 3D gestão na nuvem (Supabase)
 
-Sem nuvem, o app guarda tudo no próprio aparelho (IndexedDB) e mostra o aviso
-"Seus dados estão só neste aparelho. Faça backup.". Para ver os mesmos dados no celular e no
-computador, ligue a sincronização com um projeto **Supabase** (o plano gratuito basta).
+O app só abre depois do login com e-mail e senha. Os dados ficam no aparelho (funciona sem internet) e são
+sincronizados com um projeto **Supabase** (o plano gratuito basta). Assim o celular e o computador mostram os mesmos dados.
 
 O Supabase guarda os dados e faz o login. Ele **não** hospeda o app: páginas HTML no Supabase Storage saem como
-texto puro. O app em si fica no GitHub Pages (veja `PUBLICAR.md`).
+texto puro. O app em si fica na Vercel ou no GitHub Pages (veja `PUBLICAR.md`).
 
 ## 1. Criar o projeto
 
@@ -79,19 +78,29 @@ create trigger octa_registros_servidor
 1. No Supabase, clique em **Connect** (no topo do projeto) ou abra **Project Settings > API Keys** e copie a
    **Project URL** (`https://xxxx.supabase.co`) e a chave **publishable** (`sb_publishable_...`). A chave `anon`
    antiga também serve. **Nunca** use a chave secreta (`sb_secret_...`) nem a `service_role`.
-2. No app: **Mais > Configurações > Dados > Sincronizar na nuvem**, cole a URL e a chave e toque em
-   **Ligar a nuvem**.
-3. Toque em **Criar conta** (e-mail e senha, mínimo 6 caracteres). Os dados que já estão no aparelho sobem para a
-   nuvem.
+2. No GitHub, abra o arquivo `nuvem.json` do repositório, clique no lápis (**Edit this file**), cole a URL e a chave
+   entre as aspas e clique em **Commit changes**:
+
+   ```json
+   {
+     "url": "https://xxxx.supabase.co",
+     "chave": "sb_publishable_..."
+   }
+   ```
+
+   A Vercel (ou o GitHub Pages) publica sozinha. A partir daí, todo aparelho que abrir o app vai direto para o
+   e-mail e a senha. Com o `nuvem.json` vazio, a tela de login pede a URL e a chave uma vez em cada aparelho.
+3. Na tela de login, toque em **Ainda não tenho conta** (e-mail e senha, mínimo 6 caracteres). Os dados que já estão
+   no aparelho sobem para a nuvem.
 4. Depois de criar a sua conta, volte em **Authentication > Sign In / Providers** e desligue **Allow new users to
    sign up**. Assim ninguém mais consegue criar conta no seu projeto. Você continua entrando normalmente.
 
 ## 3. Outros aparelhos
 
-- No aparelho que já está ligado, em **Configurações > Dados**, use **Copiar link** ou **Mandar pelo WhatsApp**
-  ("Usar em outro aparelho"). Abra o link no celular ou no outro computador: o app já abre ligado à nuvem e só
-  pede o e-mail e a senha.
-- Ou, num aparelho novo, toque em **Entrar na minha conta** no assistente de primeiro acesso e cole a URL e a chave.
+- Com o `nuvem.json` preenchido: abra o endereço do app e entre com o mesmo e-mail e senha.
+- Com ele vazio: no aparelho que já está ligado, em **Configurações > Dados**, use **Copiar link** ou **Mandar pelo
+  WhatsApp** ("Usar em outro aparelho"). O link abre o app já ligado à nuvem, pedindo só o e-mail e a senha. Ou cole
+  a URL e a chave na tela de login.
 
 ## Como funciona
 

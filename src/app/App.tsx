@@ -7,7 +7,6 @@ import { useNuvem } from '../data/nuvem.ts';
 import { HostOverlays, Icon, Logo, Carregando, Botao } from '../ui/index.ts';
 import { useLocal } from './router.ts';
 import { ACOES_RAPIDAS, MENU, resolverRota, type Secao } from './routes.tsx';
-import { Onboarding } from '../features/onboarding/Onboarding.tsx';
 import { Login } from '../features/conta/Login.tsx';
 import { baixarBackupAgora } from '../features/config/ConfigDados.tsx';
 import { adiarLembreteBackup, lembreteBackupAtual } from '../services/backup.ts';
@@ -157,8 +156,8 @@ export function App() {
   }, [local.caminho]);
 
   if (!db.pronto) return <Carregando texto="Abrindo o 3D gestão..." />;
-  if (nuvem.configurada && !nuvem.logado) return <><Login /><HostOverlays /></>;
-  if (!db.config.onboardingConcluido) return <><Onboarding /><HostOverlays /></>;
+  // Decisão 109: a entrada é só o login (sem assistente de primeiro acesso).
+  if (!nuvem.logado) return <><Login /><HostOverlays /></>;
 
   const achada = resolverRota(local.caminho);
   const secao = achada?.rota.secao ?? null;

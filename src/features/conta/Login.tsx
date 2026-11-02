@@ -1,11 +1,48 @@
-// Tela de login (aparece quando a nuvem está configurada e ninguém entrou neste aparelho).
+// Tela de login: a única entrada do app (decisão 109). Sem servidor configurado (nuvem.json vazio e nenhum link de
+// outro aparelho), pede antes a URL e a chave pública do projeto Supabase.
 import { useState } from 'preact/hooks';
 import { NOME_APP } from '../../data/defaults.ts';
-import { criarConta, entrar, salvarConfigNuvem } from '../../data/nuvem.ts';
-import { Aviso, Botao, Campo, Cartao, Logo, Pilha, Texto, avisar, confirmar } from '../../ui/index.ts';
+import { criarConta, entrar, nuvemFixa, salvarConfigNuvem, useNuvem } from '../../data/nuvem.ts';
+import { Aviso, Botao, Campo, Cartao, Logo, Pilha, Texto, avisar } from '../../ui/index.ts';
 import './conta.css';
 
+function Servidor() {
+  const [url, setUrl] = useState('');
+  const [chave, setChave] = useState('');
+  const [erro, setErro] = useState<string | null>(null);
+
+  const ligar = (e: Event) => {
+    e.preventDefault();
+    setErro(null);
+    try {
+      salvarConfigNuvem({ url, chave });
+    } catch (err) {
+      setErro(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  return (
+    <form class="formulario" onSubmit={ligar}>
+      <p class="muted">
+        Primeiro acesso neste aparelho: cole a URL e a chave pública do seu projeto Supabase (botão "Connect" no Supabase).
+        Ou abra o link enviado de outro aparelho.
+      </p>
+      <Campo rotulo="URL do projeto">
+        <Texto type="url" value={url} onInput={setUrl} placeholder="https://xxxx.supabase.co" inputMode="url" autoFocus />
+      </Campo>
+      <Campo rotulo="Chave pública (publishable)" dica="Começa com sb_publishable_. Nunca use a chave secreta">
+        <Texto value={chave} onInput={setChave} placeholder="sb_publishable_..." />
+      </Campo>
+      {erro && <Aviso tom="ruim">{erro}</Aviso>}
+      <Botao variante="primario" type="submit" bloco>
+        Continuar
+      </Botao>
+    </form>
+  );
+}
+
 export function Login() {
+  const nuvem = useNuvem();
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [modo, setModo] = useState<'entrar' | 'criar'>('entrar');
@@ -40,15 +77,6 @@ export function Login() {
     }
   };
 
-  const usarSoAparelho = async () => {
-    const ok = await confirmar({
-      titulo: 'Usar só neste aparelho?',
-      itens: ['A sincronização com a nuvem será desligada.', 'Os dados continuam salvos neste aparelho.', 'Lembre de exportar backups.'],
-      confirmar: 'Usar só neste aparelho',
-    });
-    if (ok) salvarConfigNuvem(null);
-  };
-
   return (
     <div class="conta-fundo">
       <div class="conta-caixa">
@@ -58,27 +86,33 @@ export function Login() {
           <p>Seus dados no celular e no computador.</p>
         </div>
         <Cartao>
-          <form class="formulario" onSubmit={enviar}>
-            <Campo rotulo="E-mail">
-              <Texto type="email" value={email} onInput={setEmail} placeholder="voce@exemplo.com" autoFocus inputMode="email" />
-            </Campo>
-            <Campo rotulo="Senha" dica={modo === 'criar' ? 'Pelo menos 6 caracteres.' : undefined}>
-              <Texto type="password" value={senha} onInput={setSenha} />
-            </Campo>
-            {erro && <Aviso tom="ruim">{erro}</Aviso>}
-            {info && <Aviso tom="ok">{info}</Aviso>}
-            <Botao variante="primario" type="submit" bloco disabled={ocupado}>
-              {ocupado ? 'Aguarde...' : modo === 'entrar' ? 'Entrar' : 'Criar conta'}
-            </Botao>
-            <Pilha gap="p">
-              <Botao variante="fantasma" bloco onClick={() => setModo(modo === 'entrar' ? 'criar' : 'entrar')}>
-                {modo === 'entrar' ? 'Ainda não tenho conta' : 'Já tenho conta'}
+          {!nuvem.configurada ? (
+            <Servidor />
+          ) : (
+            <form class="formulario" onSubmit={enviar}>
+              <Campo rotulo="E-mail">
+                <Texto type="email" value={email} onInput={setEmail} placeholder="voce@exemplo.com" autoFocus inputMode="email" />
+              </Campo>
+              <Campo rotulo="Senha" dica={modo === 'criar' ? 'Pelo menos 6 caracteres.' : undefined}>
+                <Texto type="password" value={senha} onInput={setSenha} />
+              </Campo>
+              {erro && <Aviso tom="ruim">{erro}</Aviso>}
+              {info && <Aviso tom="ok">{info}</Aviso>}
+              <Botao variante="primario" type="submit" bloco disabled={ocupado}>
+                {ocupado ? 'Aguarde...' : modo === 'entrar' ? 'Entrar' : 'Criar conta'}
               </Botao>
-              <Botao variante="fantasma" bloco onClick={usarSoAparelho}>
-                Usar só neste aparelho
-              </Botao>
-            </Pilha>
-          </form>
+              <Pilha gap="p">
+                <Botao variante="fantasma" bloco onClick={() => setModo(modo === 'entrar' ? 'criar' : 'entrar')}>
+                  {modo === 'entrar' ? 'Ainda não tenho conta' : 'Já tenho conta'}
+                </Botao>
+                {!nuvemFixa() && (
+                  <Botao variante="fantasma" bloco onClick={() => salvarConfigNuvem(null)}>
+                    Trocar servidor
+                  </Botao>
+                )}
+              </Pilha>
+            </form>
+          )}
         </Cartao>
       </div>
     </div>

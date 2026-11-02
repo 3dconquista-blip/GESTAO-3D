@@ -1,10 +1,10 @@
-// Ponto de entrada: abre o banco local, inicia a nuvem (se configurada) e desenha o app.
+// Ponto de entrada: lê o servidor da nuvem, abre o banco local, inicia a nuvem e desenha o app.
 import { render } from 'preact';
 import './styles/app.css';
 import { App } from './app/App.tsx';
 import { db } from './data/db.ts';
 import { criarAdaptadorIDB } from './data/idb.ts';
-import { aplicarLinkConfiguracao, iniciarNuvem } from './data/nuvem.ts';
+import { aplicarLinkConfiguracao, carregarNuvemFixa, iniciarNuvem } from './data/nuvem.ts';
 import { avisar } from './ui/index.ts';
 
 // Acesso para depuração no console do navegador: octa.db
@@ -17,6 +17,8 @@ async function iniciar() {
   const raiz = document.getElementById('app')!;
   render(<App />, raiz);
   if (veioDoLink) avisar('Nuvem configurada por link. Entre com seu e-mail e senha.');
+  // Servidor publicado com o app (nuvem.json): lido antes de abrir o banco, assim a tela de login já sabe qual usar.
+  await carregarNuvemFixa();
   db.aoErro = () => avisar('Não foi possível salvar no aparelho. Exporte um backup.', 'ruim');
   try {
     db.usarAdaptador(criarAdaptadorIDB());

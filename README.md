@@ -20,7 +20,7 @@ Responde em segundos:
 | Parceiros (consignação) | Expositores, mix, instalação, reposição, visita de acerto em 5 passos com rascunho salvo, comprovante por WhatsApp, pendências, agenda, desempenho e termo de consignação |
 | Pedidos e clientes | Orçamento, Kanban de etapas, sinal e saldo, cancelamento, mensagens de WhatsApp, ficha do cliente |
 | Início e relatórios | Painel do dia e do mês, relatórios por período (canal, produto, parceiro, materiais, dinheiro que entrou, receita do ano), CSV para o Excel. Sem impostos nem MEI: isso fica com o contador |
-| Dados | Backup e restauração em JSON, exportação CSV, dados de exemplo, sincronização opcional na nuvem (Supabase) |
+| Dados | Backup e restauração em JSON, exportação CSV, dados de exemplo, login e sincronização na nuvem (Supabase) |
 
 Dinheiro é sempre calculado em centavos; os exemplos A a G da especificação batem ao centavo e estão cobertos por
 testes automatizados.
@@ -45,8 +45,8 @@ Outros comandos:
 | `npm test` | Testes (Node com TypeScript nativo) |
 | `npm run verify` | Tipos + testes + build |
 
-Para conhecer o app, abra **Mais > Configurações > Dados > Carregar dados de exemplo** (ou o botão no assistente de
-primeiro acesso).
+O app abre só na tela de login (o servidor vem do `nuvem.json`, veja `NUVEM.md`). Para conhecer o app, abra
+**Mais > Configurações > Dados > Carregar dados de exemplo**.
 
 ## Publicar
 

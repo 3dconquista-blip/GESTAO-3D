@@ -371,3 +371,23 @@ Registro das escolhas feitas onde a especificação não define, ou deixa a crit
     um produto novo ("Criar produto com este custo") ou existente ("Usar"); a conta fica guardada no aparelho.
     Produtos antigos com ficha detalhada continuam calculando pela ficha até o dono mudar o custo ou as gramas.
     Revisa a decisão 92.
+
+## Hospedagem (23/10/2026)
+
+108. **Vercel como alternativa ao GitHub Pages.** O app é só um conjunto de arquivos prontos (a pasta `dist/` e o
+    `sw.js` vão no repositório), então a Vercel só publica: o `vercel.json` desliga o framework, troca a instalação e
+    o build por `echo` (o script `build` depende do esbuild do computador do dono e falharia lá) e usa a raiz como
+    saída. `null` e vazio não bastam: testado com o programa da Vercel (65.1.0), os dois deixam rodar `npm run build`. As
+    versões novas chegam a cada "salve". O app guarda os dados por endereço: ao trocar de endereço, o app abre vazio
+    e os dados voltam pela nuvem ou por um backup. Os ícones PNG do iPhone e do Android passam a existir no repositório.
+
+## Entrada só pelo login (02/11/2026)
+
+109. **O app abre só na tela de login; o assistente de primeiro acesso saiu.** O dono quer entrar direto, sem
+    tutorial. O servidor (URL e chave pública do Supabase) vem do arquivo `nuvem.json`, publicado junto com o app e
+    editável no próprio GitHub. Se ele estiver vazio, a tela de login pede a URL e a chave uma vez por aparelho (ou vale
+    o link de outro aparelho). A chave secreta é recusada. Sem login o app não abre: sai o modo "só neste aparelho", sai
+    o "Desligar a nuvem" das Configurações e, com o `nuvem.json` preenchido, a tela não oferece "Trocar servidor". Com
+    a nuvem sempre ligada, o lembrete de backup (decisão 105) deixa de aparecer. No primeiro login o app abre vazio no
+    Início, que já diz por onde começar. Impressoras se cadastram em Configurações, filamentos e produtos em Estoque, e
+    dados de exemplo e backup ficam em Configurações > Dados. Revisa a decisão 101.

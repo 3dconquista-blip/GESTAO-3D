@@ -5,6 +5,42 @@ Formato: [vX.Y.Z] - AAAA-MM-DD
 
 ---
 
+## [v2.3.0] - 2026-11-02
+
+### Mudado
+- O app abre só na tela de login (e-mail e senha). O assistente de primeiro acesso ("Bem-vindo", 2 passos, dados de
+  exemplo) saiu. No primeiro login o app abre vazio no Início. Dados de exemplo e backup continuam em
+  Configurações > Dados
+- O servidor (URL e chave pública do Supabase) vem do novo arquivo `nuvem.json`, editável no próprio GitHub. Vazio,
+  a tela de login pede a URL e a chave uma vez por aparelho. A chave secreta é recusada
+- Sem login o app não abre: saem "Usar só neste aparelho" (login) e "Desligar a nuvem" (Configurações). Com o
+  `nuvem.json` preenchido, a tela de login não mostra "Trocar servidor"
+- `NUVEM.md`, `PUBLICAR.md` (Partes C e D), `README.md` e decisão 109 atualizados; 369 testes
+
+---
+
+## [v2.2.2] - 2026-10-23
+
+### Corrigido
+- Deploy na Vercel falhava com "Ferramentas não encontradas. Rode: npm run setup": `"buildCommand": null` no
+  `vercel.json` não desliga o build (a Vercel volta a rodar `npm run build`). Agora a instalação e o build viram
+  `echo` e a Vercel só publica os arquivos. Reproduzido e testado com o programa da Vercel (65.1.0)
+- `PUBLICAR.md` (Parte A2) e decisão 108 atualizados com isso
+
+---
+
+## [v2.2.1] - 2026-10-23
+
+### Adicionado
+- Publicação na Vercel: `vercel.json` manda publicar os arquivos como estão (sem instalar nada e sem rodar o build,
+  que só funciona no computador do dono). Passo a passo em `PUBLICAR.md` (Parte A2)
+
+### Corrigido
+- Ícones PNG que o app pedia e não existiam (`octa-180.png`, `octa-192.png` e `octa-512.png`): o ícone na tela de
+  início do iPhone, a instalação no Android e os ícones dos atalhos apontavam para arquivos ausentes
+
+---
+
 ## [v2.2.0] - 2026-10-23
 
 Cadastro de produto rápido e a conta detalhada numa Calculadora à parte (decisão 107).

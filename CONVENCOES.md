@@ -27,7 +27,7 @@ src/
   services/   operações que gravam (sempre via db.tx) + testes
   ui/         kit de interface (importe de 'ui/index.ts')
   app/        casca, rotas (routes.tsx), roteador (router.ts)
-  features/   telas por área: estoque, parceiros, pedidos, clientes, vendas, precos, relatorios, config, inicio, mais, onboarding, conta
+  features/   telas por área: estoque, parceiros, pedidos, clientes, vendas, precos, relatorios, config, inicio, mais, conta
   styles/     app.css (tokens e componentes base)
 ```
 

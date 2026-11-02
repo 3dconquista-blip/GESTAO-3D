@@ -1,8 +1,9 @@
-// Sincronização na nuvem (opcional) com um projeto Supabase do próprio dono.
+// Login e sincronização na nuvem com um projeto Supabase do próprio dono.
 // - Login por e-mail e senha (Supabase Auth); cada registro é protegido por usuário (Row Level Security).
 // - Local primeiro: o app sempre grava no aparelho; a nuvem recebe as alterações quando há internet.
 // - Conflito: vale a versão com `atualizadoEm` mais recente.
-// Sem nuvem configurada, os dados ficam só no aparelho e o app mostra o aviso fixo de backup.
+// - O app só abre depois do login (decisão 109). O servidor vem do arquivo nuvem.json publicado com o app
+//   ou, se ele estiver vazio, do que foi colado na tela de login (ou do link de outro aparelho).
 // Instruções de configuração (SQL da tabela e das políticas): NUVEM.md.
 import { useEffect, useState } from 'preact/hooks';
 import { db, type Alteracao } from './db.ts';
@@ -24,6 +25,8 @@ export interface EstadoNuvem {
 export interface ConfigNuvem {
   url: string;
   chave: string;
+  /** Veio do nuvem.json publicado com o app (a tela de login não oferece trocar de servidor). */
+  fixa?: boolean;
 }
 
 interface Sessao {
@@ -102,7 +105,7 @@ export function salvarConfigNuvem(c: ConfigNuvem | null) {
   // Outro projeto: a sessão do projeto antigo não vale mais.
   const anterior = configNuvem();
   if (anterior && anterior.url !== url) apagarLocal(K_SESSAO);
-  salvarLocal(K_CONFIG, { url, chave: c.chave.trim() });
+  salvarLocal(K_CONFIG, c.fixa ? { url, chave: c.chave.trim(), fixa: true } : { url, chave: c.chave.trim() });
   definirEstadoNuvem({ configurada: true, logado: !!sessao(), status: 'desligada', erro: null });
 }
 
@@ -129,6 +132,45 @@ export function aplicarLinkConfiguracao(hash: string): boolean {
     return true;
   } catch {
     return false;
+  }
+}
+
+/** Servidor fixo: o aparelho usa o projeto do nuvem.json publicado com o app. */
+export function nuvemFixa(): boolean {
+  return configNuvem()?.fixa === true;
+}
+
+/**
+ * Aplica o conteúdo do nuvem.json ({ "url": "...", "chave": "..." }). Vazio ou inválido: não muda nada (o aparelho
+ * continua com o servidor que já tinha). A chave secreta é recusada por salvarConfigNuvem. Devolve true se mudou.
+ */
+export function aplicarNuvemFixa(dados: unknown): boolean {
+  const d = (dados ?? {}) as { url?: unknown; chave?: unknown };
+  const url = typeof d.url === 'string' ? normalizarUrl(d.url) : '';
+  const chave = typeof d.chave === 'string' ? d.chave.trim() : '';
+  if (!url || !chave) return false;
+  const atual = configNuvem();
+  if (atual?.fixa && atual.url === url && atual.chave === chave) return false;
+  try {
+    salvarConfigNuvem({ url, chave, fixa: true });
+    return true;
+  } catch (e) {
+    console.warn('nuvem.json ignorado:', e instanceof Error ? e.message : e);
+    return false;
+  }
+}
+
+/** Lê o nuvem.json publicado ao lado do index.html. Sem internet ou sem o arquivo, segue com o que o aparelho tem. */
+export async function carregarNuvemFixa(): Promise<void> {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 4000);
+  try {
+    const res = await fetch('./nuvem.json', { cache: 'no-store', signal: ctl.signal });
+    if (res.ok) aplicarNuvemFixa(await res.json());
+  } catch {
+    /* offline, arquivo ausente ou inválido */
+  } finally {
+    clearTimeout(timer);
   }
 }
 

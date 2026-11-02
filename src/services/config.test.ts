@@ -3,7 +3,7 @@ import { beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { db } from '../data/db.ts';
 import { MENSAGENS_PADRAO } from '../data/defaults.ts';
-import { saldoMaterial, statusMargemProduto } from '../data/selectors.ts';
+import { statusMargemProduto } from '../data/selectors.ts';
 import type { Canal } from '../data/types.ts';
 import { ErroNegocio } from './estoque.ts';
 import { salvarProduto } from './produtos.ts';
@@ -18,13 +18,10 @@ import {
   atualizarParcerias,
   atualizarPedidosConfig,
   canalPersonalizado,
-  concluirOnboarding,
-  nomeFilamento,
   removerCanal,
   removerCategoria,
   renomearCategoria,
   restaurarMensagem,
-  type DadosOnboarding,
 } from './config.ts';
 
 function falha(fn: () => unknown, re: RegExp): void {
@@ -262,104 +259,5 @@ describe('categorias', () => {
     assert.deepEqual(removerCategoria('Outro'), ['Chaveiro', 'Display', 'Decoração', 'Personalizado']);
     db.tx((t) => t.config({ categorias: ['Display'] }));
     falha(() => removerCategoria('Display'), /pelo menos uma categoria/);
-  });
-});
-
-describe('concluirOnboarding', () => {
-  const dados = (): DadosOnboarding => ({
-    empresa: { nome: ' Polvo 3D ', chavePix: 'pix@polvo3d.com', nomePix: '', whatsapp: '71 99999-8888' },
-    impressoras: [
-      { nome: 'Mini', modelo: 'A1 mini' },
-      { nome: '', modelo: 'A1', valorPago: 3000 },
-    ],
-    filamentos: [
-      { material: 'PLA', corNome: 'Preto', corHex: '#111111', custoMedio: 100, gramasIniciais: 1000 },
-      { material: 'PETG', corNome: 'Branco', custoMedio: 120.5, gramasIniciais: 0 },
-    ],
-    data: '2026-10-01',
-  });
-
-  it('salva empresa, impressoras e filamentos (saldo inicial como ajuste) numa transação', () => {
-    const versao = db.version;
-    const r = concluirOnboarding(dados());
-    assert.equal(db.version, versao + 1); // uma única transação
-    assert.equal(db.config.onboardingConcluido, true);
-    assert.equal(db.config.empresa.nome, 'Polvo 3D');
-    assert.equal(db.config.empresa.chavePix, 'pix@polvo3d.com');
-    assert.equal(db.config.empresa.nomePix, 'Polvo 3D');
-    assert.equal(db.config.empresa.whatsapp, '71 99999-8888');
-
-    assert.equal(r.impressoras.length, 2);
-    const [mini, a1] = r.impressoras;
-    assert.equal(mini.nome, 'Mini');
-    assert.equal(mini.valorPago, 2179);
-    assert.equal(mini.potenciaW, 100);
-    assert.equal(a1.nome, 'A1');
-    assert.equal(a1.valorPago, 3000);
-    assert.equal(a1.potenciaW, 95);
-
-    const [preto, branco] = r.materiais;
-    assert.equal(preto.nome, 'PLA Preto');
-    assert.equal(preto.tipo, 'filamento');
-    assert.equal(preto.unidade, 'g');
-    assert.equal(preto.custoMedio, 100);
-    assert.equal(preto.corHex, '#111111');
-    assert.equal(preto.minimo, 250);
-    assert.equal(branco.nome, 'PETG Branco');
-    assert.equal(branco.custoMedio, 120.5);
-
-    const movs = db.all('movMateriais');
-    assert.equal(movs.length, 1); // 0 g não lança movimento
-    assert.equal(movs[0].materialId, preto.id);
-    assert.equal(movs[0].tipo, 'ajuste');
-    assert.equal(movs[0].motivo, 'Saldo inicial');
-    assert.equal(movs[0].quantidade, 1000);
-    assert.equal(movs[0].data, '2026-10-01');
-    assert.equal(movs[0].custoUnitSnapshot, 100);
-    assert.equal(saldoMaterial(preto.id), 1000);
-    assert.equal(saldoMaterial(branco.id), 0);
-  });
-
-  it('listas vazias são aceitas (passos pulados)', () => {
-    const r = concluirOnboarding({ empresa: { nome: 'OCTA', chavePix: '', nomePix: '' }, impressoras: [], filamentos: [] });
-    assert.equal(r.impressoras.length, 0);
-    assert.equal(db.config.onboardingConcluido, true);
-    assert.equal(db.config.empresa.nomePix, '');
-  });
-
-  it('erro em qualquer passo não grava nada', () => {
-    const d = dados();
-    d.filamentos[1].custoMedio = 0;
-    falha(() => concluirOnboarding(d), /PETG Branco.*custo do kg/);
-    assert.equal(db.config.onboardingConcluido, false);
-    assert.equal(db.config.empresa.nome, '3D gestão');
-    assert.equal(db.all('impressoras').length, 0);
-    assert.equal(db.all('materiais').length, 0);
-    assert.equal(db.all('movMateriais').length, 0);
-
-    const d2 = dados();
-    d2.filamentos.push({ material: 'PLA', corNome: 'preto', custoMedio: 90 });
-    falha(() => concluirOnboarding(d2), /já foi informado/);
-    const d3 = dados();
-    d3.filamentos[0].gramasIniciais = -5;
-    falha(() => concluirOnboarding(d3), /não pode ser negativo/);
-    const d4 = dados();
-    d4.empresa.nome = '';
-    falha(() => concluirOnboarding(d4), /nome da empresa/);
-    const d5 = dados();
-    d5.impressoras[0].vidaUtilH = 0;
-    falha(() => concluirOnboarding(d5), /vida útil/);
-    assert.equal(db.all('materiais').length, 0);
-  });
-
-  it('não roda duas vezes', () => {
-    concluirOnboarding(dados());
-    falha(() => concluirOnboarding(dados()), /já foi concluído/);
-    assert.equal(db.all('impressoras').length, 2);
-  });
-
-  it('nome padrão do filamento', () => {
-    assert.equal(nomeFilamento('PLA', ' Rosa '), 'PLA Rosa');
-    assert.equal(nomeFilamento('Outro', 'Madeira'), 'Filamento Madeira');
   });
 });

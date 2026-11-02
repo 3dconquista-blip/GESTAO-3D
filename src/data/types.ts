@@ -94,6 +94,7 @@ export interface Config extends Base {
   };
   categorias: string[];
   mensagens: Record<ChaveMensagem, string>;
+  /** Do antigo assistente de primeiro acesso (saiu na decisão 109); fica por compatibilidade com backups e a nuvem. */
   onboardingConcluido: boolean;
   /** Próximo número para código automático de produto (P-0001). */
   proximoCodigoProduto: number;

@@ -215,3 +215,39 @@ describe('nuvem — vários aparelhos', () => {
     assert.throws(() => nuvem.salvarConfigNuvem({ url: URL_PROJETO, chave: 'sb_secret_abcdefghijklmnopqrstuvwxyz' }), /secreta/);
   });
 });
+
+describe('nuvem.json (servidor publicado com o app)', () => {
+  it('vazio não muda nada; preenchido liga a nuvem como servidor fixo', () => {
+    aparelhoNovo();
+    assert.equal(nuvem.aplicarNuvemFixa({ url: '', chave: '' }), false);
+    assert.equal(nuvem.aplicarNuvemFixa(null), false);
+    assert.equal(nuvem.configNuvem(), null);
+
+    assert.equal(nuvem.aplicarNuvemFixa({ url: `${URL_PROJETO}/`, chave: ` ${CHAVE} ` }), true);
+    assert.deepEqual(nuvem.configNuvem(), { url: URL_PROJETO, chave: CHAVE, fixa: true });
+    assert.equal(nuvem.nuvemFixa(), true);
+    assert.equal(nuvem.estadoNuvem().configurada, true);
+    // Mesmo conteúdo de novo (toda vez que o app abre): nada muda.
+    assert.equal(nuvem.aplicarNuvemFixa({ url: URL_PROJETO, chave: CHAVE }), false);
+  });
+
+  it('no mesmo projeto continua logado; projeto novo pede o login de novo', async () => {
+    aparelhoNovo();
+    nuvem.salvarConfigNuvem({ url: URL_PROJETO, chave: CHAVE });
+    await nuvem.criarConta('ana@exemplo.com', 'segredo123');
+    assert.equal(nuvem.nuvemFixa(), false);
+
+    assert.equal(nuvem.aplicarNuvemFixa({ url: URL_PROJETO, chave: CHAVE }), true);
+    assert.equal(nuvem.nuvemFixa(), true);
+    assert.equal(nuvem.estadoNuvem().logado, true);
+
+    assert.equal(nuvem.aplicarNuvemFixa({ url: 'https://outro-projeto.supabase.co', chave: CHAVE }), true);
+    assert.equal(nuvem.estadoNuvem().logado, false);
+  });
+
+  it('recusa a chave secreta no nuvem.json', () => {
+    aparelhoNovo();
+    assert.equal(nuvem.aplicarNuvemFixa({ url: URL_PROJETO, chave: 'sb_secret_abcdefghijklmnopqrstuvwxyz' }), false);
+    assert.equal(nuvem.configNuvem(), null);
+  });
+});

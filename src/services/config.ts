@@ -1,4 +1,4 @@
-// Configurações (seção 12) e assistente de primeiro acesso (seção 4).
+// Configurações (seção 12).
 // Toda gravação passa por db.tx (atômica). Mudar custos ou canais NUNCA muda o preço de etiqueta
 // dos produtos (6.3): o produto só ganha o alerta de margem; aqui devolvemos um aviso para a tela.
 import { db } from '../data/db.ts';
@@ -9,21 +9,14 @@ import type {
   ChaveMensagem,
   Config,
   ID,
-  Impressora,
-  ISODate,
-  Material,
   ParametrosCusto,
   TipoCanal,
-  TipoFilamento,
 } from '../data/types.ts';
-import { hojeISO } from '../lib/dates.ts';
 import { normalizarBusca } from '../lib/format.ts';
 import { novoId } from '../lib/id.ts';
-import { round4 } from '../lib/money.ts';
 import { erroParametros } from '../domain/pricing.ts';
 import { normalizarWhatsApp } from '../domain/whatsapp.ts';
 import { ErroNegocio } from './estoque.ts';
-import { salvarImpressoraTx, type DadosImpressora } from './impressoras.ts';
 
 // ---------------------------------------------------------------- utilidades
 
@@ -440,119 +433,5 @@ export function removerCategoria(nome: string): string[] {
     }
     if (db.config.categorias.length <= 1) throw new ErroNegocio('Deixe pelo menos uma categoria.');
     return t.config((c) => ({ ...c, categorias: c.categorias.filter((x) => x !== cat) })).categorias;
-  });
-}
-
-// ---------------------------------------------------------------- Assistente de primeiro acesso (4)
-
-const TIPOS_FILAMENTO: TipoFilamento[] = ['PLA', 'PETG', 'TPU', 'ABS', 'ASA', 'Outro'];
-
-/** Filamento informado no passo 3 do assistente. */
-export interface FilamentoInicial {
-  material: TipoFilamento;
-  corNome: string;
-  corHex?: string;
-  marca?: string;
-  /** Padrão: "<material> <cor>" (ex.: 'PLA Preto'); para 'Outro', "Filamento <cor>". */
-  nome?: string;
-  /** Custo médio em R$ por kg (maior que zero). */
-  custoMedio: number;
-  /** Saldo inicial em gramas (vira um ajuste "Saldo inicial"; 0 ou vazio não lança nada). */
-  gramasIniciais?: number | null;
-}
-
-export interface DadosOnboarding {
-  /** Passo 1: nome da empresa e chave PIX. */
-  empresa: { nome: string; chavePix: string; nomePix: string; whatsapp?: string };
-  /** Passo 2: impressoras (campos vazios usam o padrão do modelo). */
-  impressoras: DadosImpressora[];
-  /** Passo 3: filamentos. */
-  filamentos: FilamentoInicial[];
-  /** Data do ajuste de saldo inicial (padrão: hoje). */
-  data?: ISODate;
-}
-
-/** Nome padrão do filamento: 'PLA Preto'; para material 'Outro', 'Filamento Preto'. */
-export function nomeFilamento(material: TipoFilamento, corNome: string): string {
-  const cor = texto(corNome);
-  return material === 'Outro' ? `Filamento ${cor}` : `${material} ${cor}`;
-}
-
-/**
- * Conclui o assistente de primeiro acesso numa única transação: salva a empresa, cria as impressoras e
- * os filamentos (saldo inicial como ajuste "Saldo inicial"; 0 não lança movimento) e marca o onboarding
- * como concluído. Se algo for inválido, nada é gravado.
- */
-export function concluirOnboarding(dados: DadosOnboarding): { config: Config; impressoras: Impressora[]; materiais: Material[] } {
-  return db.tx((t) => {
-    if (db.config.onboardingConcluido) throw new ErroNegocio('O assistente de primeiro acesso já foi concluído.');
-    const e = dados.empresa;
-    const nomeEmpresa = texto(e.nome);
-    const chavePix = texto(e.chavePix);
-    const empresa = validarEmpresa({
-      ...db.config.empresa,
-      nome: nomeEmpresa,
-      chavePix,
-      // Sem nome do recebedor, as mensagens perderiam a linha do PIX: usa o nome da empresa.
-      nomePix: texto(e.nomePix) || (chavePix ? nomeEmpresa : ''),
-      whatsapp: texto(e.whatsapp) || db.config.empresa.whatsapp,
-    });
-    t.config({ empresa });
-
-    const impressoras = (dados.impressoras ?? []).map(({ id: _id, ...imp }) => salvarImpressoraTx(t, imp));
-
-    const data = dados.data ?? hojeISO();
-    const nomes = new Set(
-      t
-        .all('materiais')
-        .filter((m) => !m.arquivado)
-        .map((m) => normalizarBusca(m.nome)),
-    );
-    const materiais = (dados.filamentos ?? []).map((f, i) => {
-      if (!TIPOS_FILAMENTO.includes(f.material)) {
-        throw new ErroNegocio(`Filamento ${i + 1}: escolha o material (PLA, PETG, TPU, ABS, ASA ou outro).`);
-      }
-      const corNome = texto(f.corNome);
-      if (!corNome) throw new ErroNegocio(`Filamento ${i + 1}: informe a cor.`);
-      const nome = texto(f.nome) || nomeFilamento(f.material, corNome);
-      if (!numeroValido(f.custoMedio) || f.custoMedio <= 0) {
-        throw new ErroNegocio(`Filamento "${nome}": informe o custo do kg (maior que zero).`);
-      }
-      const gramas = f.gramasIniciais ?? 0;
-      if (!numeroValido(gramas) || gramas < 0) {
-        throw new ErroNegocio(`Filamento "${nome}": o saldo inicial em gramas não pode ser negativo.`);
-      }
-      const chave = normalizarBusca(nome);
-      if (nomes.has(chave)) throw new ErroNegocio(`O filamento "${nome}" já foi informado.`);
-      nomes.add(chave);
-
-      const mat = t.insert('materiais', {
-        tipo: 'filamento',
-        nome,
-        material: f.material,
-        corNome,
-        corHex: texto(f.corHex) || undefined,
-        marca: texto(f.marca) || undefined,
-        unidade: 'g',
-        custoMedio: round4(f.custoMedio),
-        minimo: db.config.estoque.minimoFilamentoPadraoG,
-        arquivado: false,
-      });
-      if (gramas > 0) {
-        t.insert('movMateriais', {
-          materialId: mat.id,
-          data,
-          tipo: 'ajuste',
-          quantidade: gramas,
-          custoUnitSnapshot: mat.custoMedio,
-          motivo: 'Saldo inicial',
-          refTipo: 'ajuste',
-        });
-      }
-      return mat;
-    });
-
-    const config = t.config({ onboardingConcluido: true });
-    return { config, impressoras, materiais };
   });
 }
