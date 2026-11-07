@@ -3,9 +3,9 @@
 // e o "Valor parado em estoque (a custo)" da lista de produtos (7.1).
 import { db } from '../data/db.ts';
 import type { Tx } from '../data/db.ts';
-import { custoProduto, saldosEstoque } from '../data/selectors.ts';
+import { custoProduto, precoNoParceiro, saldosEstoque } from '../data/selectors.ts';
 import { ROTULO_MOTIVO_PERDA } from '../data/defaults.ts';
-import type { ID, ISODate, LocalId, MotivoPerda, MovEstoque } from '../data/types.ts';
+import type { Cents, ID, ISODate, LocalId, MotivoPerda, MovEstoque } from '../data/types.ts';
 import { CASA, parceiroDoLocal } from '../data/types.ts';
 import { hojeISO } from '../lib/dates.ts';
 import { round4 } from '../lib/money.ts';
@@ -141,21 +141,44 @@ export function estornarMovimentoManual(movId: ID, motivo: string, data?: ISODat
   });
 }
 
+export interface ValorEmEstoque {
+  /** Peças (só saldos positivos). */
+  pecas: number;
+  /** Pelo preço de venda: etiqueta do produto em Casa; nos parceiros, o preço daquele parceiro (decisão 113). */
+  vendaCentavos: Cents;
+  /** A custo atual do produto (reais). */
+  custo: number;
+}
+
 /**
- * "Valor parado em estoque (a custo)": soma dos saldos positivos × custo atual do produto, em reais.
- * casa = estoque central; parceiros = soma dos expositores.
+ * "Valor parado em estoque" (decisão 113): peças e quanto valem pelo preço de venda (e a custo), em Casa e nos
+ * parceiros (soma dos expositores).
  */
-export function valorParadoEmEstoque(): { casa: number; parceiros: number } {
-  let casa = 0;
-  let parceiros = 0;
+export function valorParadoEmEstoque(): { casa: ValorEmEstoque; parceiros: ValorEmEstoque } {
+  const casa: ValorEmEstoque = { pecas: 0, vendaCentavos: 0, custo: 0 };
+  const parceiros: ValorEmEstoque = { pecas: 0, vendaCentavos: 0, custo: 0 };
   for (const [produtoId, porLocal] of saldosEstoque()) {
     let custo: number | null = null;
     for (const [local, q] of porLocal) {
       if (!(q > 0)) continue;
       if (custo === null) custo = custoProduto(produtoId);
-      if (local === CASA) casa += q * custo;
-      else if (parceiroDoLocal(local)) parceiros += q * custo;
+      const pid = parceiroDoLocal(local);
+      const parceiro = pid ? db.get('parceiros', pid) : undefined;
+      let alvo: ValorEmEstoque;
+      let preco: Cents;
+      if (local === CASA) {
+        alvo = casa;
+        preco = db.get('produtos', produtoId)?.precoEtiquetaCentavos || 0;
+      } else if (pid) {
+        alvo = parceiros;
+        preco = parceiro ? precoNoParceiro(parceiro, produtoId) : db.get('produtos', produtoId)?.precoEtiquetaCentavos || 0;
+      } else continue;
+      alvo.pecas += q;
+      alvo.vendaCentavos += q * preco;
+      alvo.custo += q * custo;
     }
   }
-  return { casa: round4(casa), parceiros: round4(parceiros) };
+  casa.custo = round4(casa.custo);
+  parceiros.custo = round4(parceiros.custo);
+  return { casa, parceiros };
 }

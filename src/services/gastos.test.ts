@@ -3,7 +3,7 @@ import { beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { db } from '../data/db.ts';
 import { lembreteBackup } from './backup.ts';
-import { cancelarGasto, descricoesRecentes, lancarGasto } from './gastos.ts';
+import { atalhosGasto, cancelarGasto, descricoesRecentes, gastosDoMes, lancarGasto, SUGESTOES_GASTO } from './gastos.ts';
 import { resultadoDoPeriodo } from './relatorios.ts';
 
 const OUTUBRO = { de: '2026-10-01', ate: '2026-10-31' };
@@ -34,6 +34,31 @@ describe('gastos avulsos', () => {
     lancarGasto({ descricao: 'Anúncio', valorCentavos: 500, data: '2026-10-05' });
     lancarGasto({ descricao: 'fita', valorCentavos: 300, data: '2026-10-07' });
     assert.deepEqual(descricoesRecentes(), ['fita', 'Anúncio']);
+  });
+});
+
+describe('outros custos e despesas (decisão 111)', () => {
+  beforeEach(() => db.resetar());
+
+  it('total do mês: só o mês pedido, sem os desfeitos, do mais recente ao mais antigo', () => {
+    const a = lancarGasto({ descricao: 'Entregador', valorCentavos: 1500, data: '2026-10-03' });
+    const b = lancarGasto({ descricao: 'Gasolina', valorCentavos: 4000, data: '2026-10-20' });
+    const c = lancarGasto({ descricao: 'Embalagem', valorCentavos: 900, data: '2026-10-25' });
+    lancarGasto({ descricao: 'Gasolina', valorCentavos: 3000, data: '2026-11-02' });
+    cancelarGasto(c.id);
+    const m = gastosDoMes('2026-10-15');
+    assert.equal(m.de, '2026-10-01');
+    assert.equal(m.ate, '2026-10-31');
+    assert.deepEqual(m.gastos.map((g) => g.id), [b.id, a.id]);
+    assert.equal(m.totalCentavos, 5500);
+    assert.equal(m.totalCentavos, resultadoDoPeriodo(OUTUBRO).gastosCentavos, 'o mesmo total que entra no lucro');
+  });
+
+  it('atalhos: os usados por último e, completando, entregador, gasolina...', () => {
+    assert.deepEqual(atalhosGasto(), SUGESTOES_GASTO);
+    lancarGasto({ descricao: 'Fita dupla face', valorCentavos: 800, data: '2026-10-01' });
+    lancarGasto({ descricao: 'gasolina', valorCentavos: 3000, data: '2026-10-02' });
+    assert.deepEqual(atalhosGasto(4), ['gasolina', 'Fita dupla face', 'Entregador', 'Embalagem']);
   });
 });
 

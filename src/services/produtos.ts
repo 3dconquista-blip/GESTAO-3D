@@ -67,11 +67,14 @@ export interface DadosProduto {
   /** Margem de lucro própria (%). null = usar a margem padrão da configuração; ausente na edição = mantém. */
   margemPct?: number | null;
   /**
-   * Custo por peça digitado (reais), da Calculadora (decisão 107). Com ele, a ficha precisa só das gramas por peça
-   * (impressora e tempo ficam opcionais). null = voltar a calcular pela ficha; ausente na edição = mantém.
+   * Custo por peça digitado (reais), da Calculadora (decisão 107). Com ele, a ficha fica opcional: impressora, tempo e
+   * até as gramas por peça (decisão 112; sem gramas, a produção não baixa filamento). null = voltar a calcular pela
+   * ficha; ausente na edição = mantém.
    */
   custoInformado?: number | null;
   arquivado?: boolean;
+  /** Só na criação: peças que já estão em Casa (vira um ajuste "Estoque inicial", sem gastar filamento). */
+  quantidadeInicial?: number;
 }
 
 /** Ficha técnica para a prévia de custo (mesas ainda sem id são aceitas). */
@@ -192,7 +195,8 @@ function validarMesas(t: Tx, mesas: MesaEntrada[] | undefined, simples = false):
     if (!numeroValido(m.tempoMin) || m.tempoMin < 0 || (!simples && m.tempoMin === 0)) {
       throw new ErroNegocio(`${rotulo}: informe o tempo da mesa.`);
     }
-    if (!Array.isArray(m.filamentos) || m.filamentos.length === 0) {
+    // Produto com custo digitado pode ficar sem gramas (decisão 112): detalha depois, se precisar.
+    if (!Array.isArray(m.filamentos) || (m.filamentos.length === 0 && !simples)) {
       throw new ErroNegocio(`${rotulo}: informe pelo menos um filamento, com as gramas da mesa inteira.`);
     }
     // O produto guarda só o TIPO do filamento; um carretel informado fica como cor sugerida para a produção.
@@ -248,6 +252,10 @@ export function salvarProdutoTx(t: Tx, dados: DadosProduto): Produto {
 
   const nome = texto(d.nome);
   if (!nome) throw new ErroNegocio('Informe o nome do produto.');
+  const quantidadeInicial = atual ? 0 : (dados.quantidadeInicial ?? 0);
+  if (!Number.isInteger(quantidadeInicial) || quantidadeInicial < 0) {
+    throw new ErroNegocio('A quantidade em Casa precisa ser um número inteiro, 0 ou mais.');
+  }
   // Categoria é opcional: sem ela, vale a do último produto cadastrado (ou a primeira da lista).
   const categoriaInformada = texto(d.categoria) || categoriaPadraoTx(t);
 
@@ -277,9 +285,9 @@ export function salvarProdutoTx(t: Tx, dados: DadosProduto): Produto {
   const componentes = validarComponentes(t, d.componentes);
   const margemPct = validarMargem(d.margemPct);
 
+  const custo = composicaoCusto({ mesas, componentes, maoDeObraMin, custoInformado }, contextoTx(t)).total;
   let precoEtiquetaCentavos = d.precoEtiquetaCentavos;
   if (precoEtiquetaCentavos == null) {
-    const custo = composicaoCusto({ mesas, componentes, maoDeObraMin, custoInformado }, contextoTx(t)).total;
     precoEtiquetaCentavos = etiquetaSugerida(custo, db.config.canais, custosComMargem(db.config.custos, margemPct)) ?? 0;
   }
   if (!Number.isInteger(precoEtiquetaCentavos) || precoEtiquetaCentavos < 0) {
@@ -303,7 +311,21 @@ export function salvarProdutoTx(t: Tx, dados: DadosProduto): Produto {
     arquivado: d.arquivado ?? false,
   };
   if (atual) return t.update('produtos', atual.id, campos);
-  return t.insert('produtos', { ...campos, codigo: proximoCodigoTx(t), ...(dados.id ? { id: dados.id } : {}) });
+  const novo = t.insert('produtos', { ...campos, codigo: proximoCodigoTx(t), ...(dados.id ? { id: dados.id } : {}) });
+  if (quantidadeInicial > 0) {
+    lancarMov(t, {
+      data: hojeISO(),
+      produtoId: novo.id,
+      quantidade: quantidadeInicial,
+      origem: null,
+      destino: CASA,
+      tipo: 'ajuste',
+      motivo: 'Estoque inicial (cadastro)',
+      refTipo: 'ajuste',
+      custoUnit: custo,
+    });
+  }
+  return novo;
 }
 
 /**

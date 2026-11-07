@@ -75,3 +75,48 @@ describe('produto simples (custo da Calculadora)', () => {
     assert.equal(tempoPorPeca(ficha), 60); // 240/8 + 60/2
   });
 });
+
+describe('cadastro rápido: sem gramas e com a quantidade em Casa (decisão 112)', () => {
+  beforeEach(() => {
+    db.resetar();
+    carregarExemplo();
+  });
+
+  it('salva sem gramas; a quantidade vira um ajuste "Estoque inicial" em Casa', () => {
+    const p = simples({ nome: 'Vaso', mesas: [{ pecasPorMesa: 1, tempoMin: 0, filamentos: [] }], quantidadeInicial: 12 });
+    assert.deepEqual(p.mesas[0].filamentos, []);
+    assert.equal(saldoCasa(p.id), 12);
+    const movs = db.all('movEstoque').filter((m) => m.produtoId === p.id);
+    assert.equal(movs.length, 1);
+    assert.equal(movs[0].tipo, 'ajuste');
+    assert.equal(movs[0].motivo, 'Estoque inicial (cadastro)');
+    assert.equal(movs[0].custoUnit, 3.5);
+    // Sem custo digitado, a ficha continua exigindo o filamento.
+    assert.throws(
+      () => salvarProduto({ nome: 'Sem custo', mesas: [{ pecasPorMesa: 1, tempoMin: 30, filamentos: [] }], componentes: [] }),
+      /pelo menos um filamento/,
+    );
+  });
+
+  it('editar não lança estoque de novo; quantidade inválida não grava nada', () => {
+    const p = simples({ nome: 'Vaso', quantidadeInicial: 3 });
+    salvarProduto({ id: p.id, nome: 'Vaso grande', mesas: p.mesas, componentes: [], quantidadeInicial: 50 });
+    assert.equal(saldoCasa(p.id), 3);
+    const antes = db.all('produtos').length;
+    assert.throws(() => simples({ nome: 'Errado', quantidadeInicial: 2.5 }), /quantidade em Casa/);
+    assert.throws(() => simples({ nome: 'Errado', quantidadeInicial: -1 }), /quantidade em Casa/);
+    assert.equal(db.all('produtos').length, antes);
+  });
+
+  it('a produção de um produto sem gramas não baixa filamento', () => {
+    const p = simples({ nome: 'Vaso', mesas: [{ pecasPorMesa: 1, tempoMin: 0, filamentos: [] }] });
+    const filamentos = db.all('materiais').filter((m) => m.tipo === 'filamento');
+    const antes = filamentos.map((m) => saldoMaterial(m.id));
+    registrarProducao({ produtoId: p.id, qtdBoa: 5 });
+    assert.equal(saldoCasa(p.id), 5);
+    assert.deepEqual(
+      filamentos.map((m) => saldoMaterial(m.id)),
+      antes,
+    );
+  });
+});

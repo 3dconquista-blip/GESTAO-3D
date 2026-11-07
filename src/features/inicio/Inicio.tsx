@@ -169,8 +169,10 @@ export function Inicio(_props: TelaProps) {
           )}
         </div>
         <small class="muted">
-          Lucro estimado = receita − custo dos produtos vendidos − perdas − custos fixos do mês ({formatBRL(atual.custosFixosCentavos)}).
-          {hoje < atual.ate ? ' O mês ainda não acabou: os custos fixos entram inteiros.' : ''}
+          Lucro estimado = receita − custo dos produtos vendidos − perdas − <a href="#/gastos">outros custos e despesas</a> (
+          {formatBRL(atual.gastosCentavos)})
+          {atual.custosFixosCentavos ? ` − custos fixos do mês (${formatBRL(atual.custosFixosCentavos)})` : ''}.
+          {atual.custosFixosCentavos && hoje < atual.ate ? ' O mês ainda não acabou: os custos fixos entram inteiros.' : ''}
         </small>
       </Secao>
     </Pagina>

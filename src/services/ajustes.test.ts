@@ -2,7 +2,7 @@
 import { beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { db } from '../data/db.ts';
-import { custoProduto, saldosEstoque, saldoCasa } from '../data/selectors.ts';
+import { custoProduto, precoNoParceiro, saldosEstoque, saldoCasa } from '../data/selectors.ts';
 import { CASA } from '../data/types.ts';
 import { round4 } from '../lib/money.ts';
 import { carregarExemplo } from './exemplo.ts';
@@ -49,20 +49,42 @@ describe('ajustes de estoque', () => {
     assert.match(bloqueioEstornoManual(mv.id)!, /cancele a venda/);
   });
 
-  it('valor parado em estoque a custo: Casa e parceiros', () => {
+  it('valor parado em estoque (decisão 113): peças e preço de venda em Casa e nos parceiros, e o custo', () => {
     let casa = 0;
     let parceiros = 0;
+    let pecasCasa = 0;
+    let vendaCasa = 0;
+    let vendaParceiros = 0;
     for (const [id, m] of saldosEstoque()) {
       for (const [local, q] of m) {
         if (q <= 0) continue;
-        if (local === CASA) casa += q * custoProduto(id);
-        else parceiros += q * custoProduto(id);
+        if (local === CASA) {
+          casa += q * custoProduto(id);
+          pecasCasa += q;
+          vendaCasa += q * db.get('produtos', id)!.precoEtiquetaCentavos;
+        } else {
+          parceiros += q * custoProduto(id);
+          vendaParceiros += q * precoNoParceiro(db.get('parceiros', local.slice(2))!, id);
+        }
       }
     }
     const v = valorParadoEmEstoque();
-    assert.equal(v.casa, round4(casa));
-    assert.equal(v.parceiros, round4(parceiros));
+    assert.equal(v.casa.custo, round4(casa));
+    assert.equal(v.parceiros.custo, round4(parceiros));
+    assert.equal(v.casa.pecas, pecasCasa);
+    assert.equal(v.casa.vendaCentavos, vendaCasa);
     // Alfa (10 + 8 + 6) e Beta (12 Kettlebell Rosa + 3 Display PIX).
-    assert.equal(v.parceiros, round4(36 * 2.4873 + 3 * custoProduto(db.all('produtos').find((p) => p.nome === 'Display PIX')!.id)));
+    assert.equal(v.parceiros.pecas, 39);
+    assert.equal(v.parceiros.custo, round4(36 * 2.4873 + 3 * custoProduto(db.all('produtos').find((p) => p.nome === 'Display PIX')!.id)));
+    assert.equal(v.parceiros.vendaCentavos, vendaParceiros);
+    assert.ok(v.parceiros.vendaCentavos > v.parceiros.custo * 100, 'pelo preço de venda vale mais que a custo');
+
+    // Nos parceiros vale o preço daquele parceiro (mix); mudar a etiqueta do produto não muda esse valor.
+    const alfa = db.all('parceiros').find((p) => p.mix.some((m) => m.produtoId === kb().id && m.precoEtiquetaCentavos != null))!;
+    const precoAlfa = alfa.mix.find((m) => m.produtoId === kb().id)!.precoEtiquetaCentavos;
+    db.tx((t) => t.update('produtos', kb().id, { precoEtiquetaCentavos: kb().precoEtiquetaCentavos + 1000 }));
+    const depois = valorParadoEmEstoque();
+    assert.equal(depois.casa.vendaCentavos, vendaCasa + 1000 * saldoCasa(kb().id));
+    assert.equal(depois.parceiros.vendaCentavos, v.parceiros.vendaCentavos, `preço do parceiro (${precoAlfa}) continua valendo`);
   });
 });

@@ -130,7 +130,7 @@ export class Store {
     if (!alteracoes.length) return;
     for (const a of alteracoes) {
       if (a.col === 'config') {
-        if (a.rec) this.config = { ...configPadrao(), ...(a.rec as Config) };
+        if (a.rec) this.config = migrarConfig({ ...configPadrao(), ...(a.rec as Config) });
         continue;
       }
       const mapa = this.mapas[a.col] as Map<ID, Base> | undefined;

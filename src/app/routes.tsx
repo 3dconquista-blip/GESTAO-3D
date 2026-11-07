@@ -15,6 +15,7 @@ import { Movimentacoes } from '../features/estoque/Movimentacoes.tsx';
 import { RegistrarProducao } from '../features/estoque/RegistrarProducao.tsx';
 import { CompraMaterial } from '../features/estoque/CompraMaterial.tsx';
 import { LancarGasto } from '../features/gastos/LancarGasto.tsx';
+import { OutrosCustos } from '../features/gastos/OutrosCustos.tsx';
 import { Calculadora } from '../features/precos/Calculadora.tsx';
 import { AjusteEstoque } from '../features/estoque/AjusteEstoque.tsx';
 import { TelaParceiros } from '../features/parceiros/Parceiros.tsx';
@@ -68,6 +69,7 @@ export const ROTAS: Rota[] = [
   { padrao: '/producao/nova', tela: RegistrarProducao, secao: 'estoque' },
   { padrao: '/compra', tela: CompraMaterial, secao: 'estoque' },
   { padrao: '/calculadora', tela: Calculadora, secao: 'estoque' },
+  { padrao: '/gastos', tela: OutrosCustos, secao: 'mais' },
   { padrao: '/gastos/novo', tela: LancarGasto, secao: 'mais' },
 
   // Parceiros
@@ -123,11 +125,12 @@ export function resolverRota(caminho: string): { rota: Rota; params: Record<stri
 /** Ações rápidas do botão flutuante "+". */
 export const ACOES_RAPIDAS = [
   { rotulo: 'Venda rápida', icone: 'carrinho', href: '/venda' },
+  { rotulo: 'Novo produto', icone: 'estoque', href: '/estoque/produtos/novo' },
   { rotulo: 'Registrar produção', icone: 'impressora', href: '/producao/nova' },
   { rotulo: 'Fazer acerto', icone: 'parceiros', href: '/parceiros' },
   { rotulo: 'Novo pedido', icone: 'pedidos', href: '/pedidos/novo' },
   { rotulo: 'Compra de material', icone: 'rolo', href: '/compra' },
-  { rotulo: 'Lançar gasto', icone: 'dinheiro', href: '/gastos/novo' },
+  { rotulo: 'Lançar custo/despesa', icone: 'dinheiro', href: '/gastos/novo' },
 ];
 
 export const MENU: { secao: Secao; rotulo: string; icone: string; href: string }[] = [

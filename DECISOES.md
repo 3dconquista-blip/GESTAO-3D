@@ -391,3 +391,26 @@ Registro das escolhas feitas onde a especificação não define, ou deixa a crit
     a nuvem sempre ligada, o lembrete de backup (decisão 105) deixa de aparecer. No primeiro login o app abre vazio no
     Início, que já diz por onde começar. Impressoras se cadastram em Configurações, filamentos e produtos em Estoque, e
     dados de exemplo e backup ficam em Configurações > Dados. Revisa a decisão 101.
+
+## Melhorias de novembro (06/11/2026)
+
+Nenhuma destas mudanças regrava os dados que já existem (produtos, estoque, vendas, parceiros).
+
+110. **Sem o custo fixo do MEI.** O padrão dos custos fixos mensais era o DAS do MEI (R$ 82,05), que saía do lucro
+    de todo mês. Agora o padrão é R$ 0. Uma configuração gravada com exatamente R$ 82,05 é lida como R$ 0 (só em
+    memória, como as outras migrações, no aparelho, no backup e na nuvem). Um valor diferente, digitado pelo dono,
+    continua valendo. O campo segue em Configurações > Custos e preços (internet, assinaturas), e a linha "Custos fixos"
+    só aparece no resultado quando tem valor. Revisa a linha "Custos fixos mensais" da seção 6.1 da especificação.
+111. **"Outros custos e despesas".** Os gastos avulsos (decisão 106) ganharam tela própria, em Mais e no menu lateral.
+    Ela mostra o total do mês, mês a mês, com a lista e o "Desfazer" de cada lançamento. Ao lançar, os atalhos são os
+    usados por último e, completando, entregador, gasolina, embalagem e anúncio. Os valores entram no lucro do mês como
+    antes. No Início e nos relatórios, o nome passa a ser "Outros custos e despesas".
+112. **Cadastro rápido de produto.** O cadastro pede nome, custo por peça, quantidade em Casa e preço.
+    - A quantidade vira um ajuste de entrada "Estoque inicial (cadastro)" em Casa, pelo custo do produto. Não gasta
+      filamento e não conta como produção.
+    - As gramas por peça saíram do cadastro e ficaram opcionais em "Mais detalhes". Produto com custo digitado pode ficar
+      sem gramas; enquanto não tiver, a produção dele não baixa filamento.
+    - "Novo produto" entrou no botão "+".
+113. **Valor parado em estoque pelo preço de venda.** Em Estoque > Produtos, Casa e parceiros mostram as peças e
+    quanto valem pelo preço de venda, com o custo em letra menor. Em Casa vale a etiqueta do produto; nos parceiros, o
+    preço daquele parceiro (ou a etiqueta, se ele não tiver um).

@@ -182,7 +182,9 @@ export function ProdutoDetalhe({ params }: TelaProps) {
           <div class="est-mesas">
             {comp?.informado && p.mesas.length === 1 && p.mesas[0].pecasPorMesa === 1 ? (
               <div class="est-mesa">
-                {formatGramas(gramasPorPeca(p))} de {tipoDoSlot(p.mesas[0].filamentos[0] ?? {}, material)} por peça
+                {p.mesas[0].filamentos.length
+                  ? `${formatGramas(gramasPorPeca(p))} de ${tipoDoSlot(p.mesas[0].filamentos[0], material)} por peça`
+                  : 'Gramas por peça ainda não informadas (a produção não baixa filamento)'}
                 {tempoPorPeca(p) > 0 && ` · ${formatDuracao(tempoPorPeca(p))} por peça`}
               </div>
             ) : (

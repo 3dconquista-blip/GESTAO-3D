@@ -530,7 +530,7 @@ export interface Pagamento extends Base {
   estornoDe?: ID;
 }
 
-// ---------------------------------------------------------------- Gastos avulsos (decisão 106)
+// ---------------------------------------------------------------- Outros custos e despesas (decisões 106 e 111)
 
 /** Gasto que não está nos custos fixos do mês (ferramenta, anúncio, embalagem...): entra no lucro do período. */
 export interface Gasto extends Base {

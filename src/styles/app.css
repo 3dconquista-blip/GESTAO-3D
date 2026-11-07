@@ -133,7 +133,7 @@ img { max-width: 100%; }
 .pagina-estreita { max-width: 640px; }
 .pagina-larga { max-width: 1440px; }
 .pagina-topo { display: flex; align-items: center; gap: 8px; min-height: 52px; margin-bottom: 12px; flex-wrap: wrap; }
-.pagina-titulos { flex: 1; min-width: 0; }
+.pagina-titulos { flex: 1; min-width: min(10rem, 100%); }
 .pagina-titulos h1 { overflow-wrap: anywhere; }
 .pagina-subtitulo { color: var(--texto-3); font-size: 0.87rem; margin: 2px 0 0; }
 .pagina-acoes { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -421,3 +421,5 @@ a.item-lista:hover, button.item-lista:hover { background: var(--superficie-2); }
 .gasto-recentes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: -4px; }
 .gasto-chip { border: 1px solid var(--borda-forte); background: var(--superficie); color: var(--texto); border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 0.85rem; cursor: pointer; min-height: 36px; }
 .gasto-chip.ativo { border-color: var(--principal); background: var(--principal-claro); color: var(--principal); font-weight: 600; }
+.gastos-mes { display: flex; align-items: center; justify-content: center; gap: 12px; }
+.gastos-mes strong { min-width: 90px; text-align: center; }

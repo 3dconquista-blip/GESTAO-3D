@@ -1,8 +1,8 @@
-// Gastos avulsos (decisão 106): o que não está nos custos fixos do mês (ferramenta, anúncio, embalagem...). Dois
-// campos: o que foi e quanto custou. Entram no lucro do período; "Desfazer" cancela (o registro continua guardado).
+// "Outros custos e despesas" (decisões 106 e 111): entregador, gasolina, embalagem, anúncio... Dois campos: o que foi
+// e quanto custou. Entram no lucro do período; "Desfazer" cancela (o registro continua guardado).
 import { db } from '../data/db.ts';
 import type { Cents, Gasto, ID, ISODate } from '../data/types.ts';
-import { hojeISO } from '../lib/dates.ts';
+import { fimDoMes, hojeISO, inicioDoMes } from '../lib/dates.ts';
 import { ErroNegocio } from './estoque.ts';
 
 export interface DadosGasto {
@@ -28,6 +28,31 @@ export function cancelarGasto(id: ID): Gasto {
     if (g.cancelado) throw new ErroNegocio('Este gasto já foi desfeito.');
     return t.update('gastos', id, { cancelado: true });
   });
+}
+
+/** Atalhos que aparecem depois dos usados por último (os custos mais comuns de quem entrega as peças). */
+export const SUGESTOES_GASTO = ['Entregador', 'Gasolina', 'Embalagem', 'Anúncio'];
+
+/** Atalhos de "Com o que foi": os usados por último e, completando, as sugestões comuns (sem repetir). */
+export function atalhosGasto(limite = 6): string[] {
+  const out = descricoesRecentes(limite);
+  const vistas = new Set(out.map((d) => d.toLocaleLowerCase('pt-BR')));
+  for (const s of SUGESTOES_GASTO) {
+    if (out.length >= limite) break;
+    if (!vistas.has(s.toLocaleLowerCase('pt-BR'))) out.push(s);
+  }
+  return out;
+}
+
+/** Custos e despesas do mês de `dia` (sem os desfeitos), do mais recente ao mais antigo, com o total. */
+export function gastosDoMes(dia: ISODate): { de: ISODate; ate: ISODate; gastos: Gasto[]; totalCentavos: Cents } {
+  const de = inicioDoMes(dia);
+  const ate = fimDoMes(dia);
+  const gastos = db
+    .all('gastos')
+    .filter((g) => !g.cancelado && g.data >= de && g.data <= ate)
+    .sort((a, b) => b.data.localeCompare(a.data) || b.criadoEm.localeCompare(a.criadoEm));
+  return { de, ate, gastos, totalCentavos: gastos.reduce((s, g) => s + g.valorCentavos, 0) };
 }
 
 /** Descrições usadas por último (sem repetir), para lançar de novo com um toque. */

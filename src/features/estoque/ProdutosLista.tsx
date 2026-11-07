@@ -9,7 +9,7 @@ import { simular, type StatusMargem } from '../../domain/pricing.ts';
 import { combinaBusca, formatBRL, formatPct, formatQtd, formatReais } from '../../lib/format.ts';
 import { valorParadoEmEstoque } from '../../services/ajustes.ts';
 import { alertaLicenca, copiarProduto, excluirProdutos, previaExclusao } from '../../services/produtos.ts';
-import { Botao, Busca, Cartao, Chave, Escolha, Icon, Pagina, Selo, Tabela, Vazio, avisar, confirmar, type Coluna } from '../../ui/index.ts';
+import { Botao, Busca, Cartao, Chave, Escolha, Icon, Indicador, Pagina, Selo, Tabela, Vazio, avisar, confirmar, type Coluna } from '../../ui/index.ts';
 import { alertasAtuais } from '../../services/consultas.ts';
 import { ResumoAlertas } from './Alertas.tsx';
 import { EdicaoEmMassaModal } from './EdicaoEmMassa.tsx';
@@ -190,14 +190,17 @@ export function ProdutosLista(_props: TelaProps) {
       <EstoqueAbas ativa="produtos" />
       <ResumoAlertas alertas={alertasAtuais()} />
       {todos.length > 0 && (
-        <div class="est-parado">
-          <span>Valor parado em estoque (a custo):</span>
-          <span>
-            em Casa <strong>{formatReais(parado.casa)}</strong>
-          </span>
-          <span>
-            nos parceiros <strong>{formatReais(parado.parceiros)}</strong>
-          </span>
+        <div class="indicadores">
+          <Indicador
+            rotulo="Em Casa"
+            valor={formatBRL(parado.casa.vendaCentavos)}
+            detalhe={`${formatQtd(parado.casa.pecas)} peça(s) pelo preço de venda · custo ${formatReais(parado.casa.custo)}`}
+          />
+          <Indicador
+            rotulo="Nos parceiros"
+            valor={formatBRL(parado.parceiros.vendaCentavos)}
+            detalhe={`${formatQtd(parado.parceiros.pecas)} peça(s) pelo preço de venda · custo ${formatReais(parado.parceiros.custo)}`}
+          />
         </div>
       )}
       <div class="est-filtros est-filtros-3">

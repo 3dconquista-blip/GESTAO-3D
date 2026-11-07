@@ -1,7 +1,8 @@
-// Cadastro e edição de produto, simples (decisão 107): nome, custo por peça, gramas de filamento por peça e preço.
-// O custo detalhado (mesas, tempo, impressora, energia, mão de obra) é feito na Calculadora, que manda o custo e as
-// gramas para cá (?custo=&gramas=&tipo=&tempo=&nome=). O produto não tem cor: a cor é escolhida em cada produção
-// (decisão 85). Categoria, mínimo, margem, foto, tempo, insumos, licença e preço por canal ficam em "Mais detalhes".
+// Cadastro e edição de produto, simples (decisões 107 e 112): nome, custo por peça, quantidade em Casa (só no
+// cadastro) e preço. O custo detalhado (mesas, tempo, impressora, energia, mão de obra) é feito na Calculadora, que manda
+// o custo e as gramas para cá (?custo=&gramas=&tipo=&tempo=&nome=). O produto não tem cor: a cor é escolhida em cada
+// produção (decisão 85). Gramas por peça (opcionais), categoria, mínimo, margem, foto, tempo, insumos, licença e preço
+// por canal ficam em "Mais detalhes".
 import { useState } from 'preact/hooks';
 import { navegar, type TelaProps } from '../../app/router.ts';
 import { db } from '../../data/db.ts';
@@ -74,6 +75,8 @@ export function ProdutoForm({ params, query }: TelaProps) {
     return f ? tipoDoSlot(f, material) : (tipos[0] ?? TIPO_PADRAO);
   });
   // Insumos que saem do estoque a cada peça (argola, saquinho); o custo deles já está no custo por peça.
+  // Só no cadastro: peças que já estão prontas em Casa (decisão 112).
+  const [qtd, setQtd] = useState<number | null>(null);
   const [ficha, setFicha] = useState<FichaTecnica>(() => ({ mesas: [], componentes: atual?.componentes.map((c) => ({ ...c })) ?? [], maoDeObraMin: atual?.maoDeObraMin ?? 0 }));
   // Produto antigo com ficha detalhada: só troca a ficha se as gramas, o tipo ou o tempo mudarem.
   const detalhada = !!atual && !fichaSimples(atual);
@@ -106,7 +109,7 @@ export function ProdutoForm({ params, query }: TelaProps) {
       const manterFicha = detalhada && !mudouFicha;
       const mesas: Mesa[] = manterFicha
         ? atual!.mesas
-        : [{ id: atual?.mesas[0]?.id ?? '', pecasPorMesa: 1, tempoMin: tempo ?? 0, impressoraId: atual?.mesas[0]?.impressoraId ?? '', filamentos: [{ tipo, gramas: gramas ?? 0 }] }];
+        : [{ id: atual?.mesas[0]?.id ?? '', pecasPorMesa: 1, tempoMin: tempo ?? 0, impressoraId: atual?.mesas[0]?.impressoraId ?? '', filamentos: gramas && gramas > 0 ? [{ tipo, gramas }] : [] }];
       // Ficha detalhada antiga com o custo sem mexer: continua calculando pela ficha.
       const custoInformado = manterFicha && !mudouCusto ? null : custoEfetivo;
       const p = salvarProduto({
@@ -124,8 +127,9 @@ export function ProdutoForm({ params, query }: TelaProps) {
         mesas,
         componentes: ficha.componentes,
         custoInformado,
+        quantidadeInicial: atual ? undefined : (qtd ?? 0),
       });
-      avisar(atual ? 'Produto salvo' : `Produto cadastrado (${p.codigo})`);
+      avisar(atual ? 'Produto salvo' : `Produto cadastrado (${p.codigo})${qtd ? ` · ${qtd} em Casa` : ''}`);
       navegar(`/estoque/produtos/${p.id}`, { substituir: true });
     } catch (e) {
       avisar(e instanceof Error ? e.message : String(e), 'ruim');
@@ -133,6 +137,7 @@ export function ProdutoForm({ params, query }: TelaProps) {
   };
 
   const resumoDetalhes = [
+    gramas ? `${gramas} g por peça` : '',
     d.categoria,
     d.estoqueMinimo ? `mínimo ${d.estoqueMinimo}` : '',
     d.margemPct != null ? `margem ${formatPct(d.margemPct, 0)}` : '',
@@ -153,6 +158,7 @@ export function ProdutoForm({ params, query }: TelaProps) {
           <div class="campos-2">
             <Campo
               rotulo="Custo por peça"
+              obrigatorio
               dica={
                 <>
                   {custo == null && soFilamento ? `Vazio = só o filamento (${formatReais(soFilamento)}). ` : ''}
@@ -172,31 +178,12 @@ export function ProdutoForm({ params, query }: TelaProps) {
                 placeholder={soFilamento ? soFilamento.toFixed(2).replace('.', ',') : '0,00'}
               />
             </Campo>
-            <Campo rotulo="Gramas de filamento por peça" dica={detalhada && !mudouFicha ? `Da ficha detalhada (${atual!.mesas.length} mesa(s)); mudar troca a ficha por gramas por peça` : 'Sai do carretel a cada peça produzida'}>
-              <Numero
-                value={gramas}
-                onChange={(v) => {
-                  setGramas(v);
-                  setMudouFicha(true);
-                }}
-                decimais={1}
-                min={0}
-                sufixo={tipos.length > 1 ? 'g' : `g de ${tipo}`}
-              />
-            </Campo>
+            {!atual && (
+              <Campo rotulo="Quantidade em Casa" dica="Peças que você já tem prontas (vazio = nenhuma)">
+                <Numero value={qtd} onChange={(v) => setQtd(v)} decimais={0} min={0} sufixo="peças" placeholder="0" />
+              </Campo>
+            )}
           </div>
-          {tipos.length > 1 && (
-            <Campo rotulo="Tipo de filamento">
-              <Segmentado
-                value={tipo}
-                onChange={(v) => {
-                  setTipo(v);
-                  setMudouFicha(true);
-                }}
-                opcoes={tipos.map((t) => ({ valor: t, rotulo: t }))}
-              />
-            </Campo>
-          )}
 
           <div class="prod-preco">
             {sugerida != null && (
@@ -224,6 +211,34 @@ export function ProdutoForm({ params, query }: TelaProps) {
 
       <MaisDetalhes resumo={resumoDetalhes || undefined}>
         <div class="campos-2">
+          <Campo
+            rotulo="Gramas de filamento por peça"
+            dica={detalhada && !mudouFicha ? `Da ficha detalhada (${atual!.mesas.length} mesa(s)); mudar troca a ficha por gramas por peça` : 'Opcional: com elas, cada produção baixa o filamento do carretel'}
+          >
+            <Numero
+              value={gramas}
+              onChange={(v) => {
+                setGramas(v);
+                setMudouFicha(true);
+              }}
+              decimais={1}
+              min={0}
+              sufixo={tipos.length > 1 ? 'g' : `g de ${tipo}`}
+              placeholder="Detalhar depois"
+            />
+          </Campo>
+          {tipos.length > 1 && (
+            <Campo rotulo="Tipo de filamento">
+              <Segmentado
+                value={tipo}
+                onChange={(v) => {
+                  setTipo(v);
+                  setMudouFicha(true);
+                }}
+                opcoes={tipos.map((t) => ({ valor: t, rotulo: t }))}
+              />
+            </Campo>
+          )}
           <Campo rotulo="Categoria">
             <Escolha value={d.categoria} onChange={(v) => mudar({ categoria: v })} opcoes={db.config.categorias.map((c) => ({ valor: c, rotulo: c }))} />
           </Campo>
@@ -293,7 +308,7 @@ export function ProdutoForm({ params, query }: TelaProps) {
       </MaisDetalhes>
 
       <div class="barra-acoes-fixa">
-        <Botao variante="primario" icone="check" onClick={salvar} disabled={!d.nome.trim() || !(gramas && gramas > 0) || custoEfetivo <= 0}>
+        <Botao variante="primario" icone="check" onClick={salvar} disabled={!d.nome.trim() || custoEfetivo <= 0}>
           Salvar produto
         </Botao>
       </div>

@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { db, type Snapshot } from './db.ts';
 import { migrarRegistro } from './migracoes.ts';
 import { saldoMaterial } from './selectors.ts';
-import type { Pedido, Produto } from './types.ts';
+import type { Base, Pedido, Produto } from './types.ts';
 import { pedidosPorEtapa } from '../domain/pedidos.ts';
 import { exportarBackup, importarBackup } from '../services/backup.ts';
 import { carregarExemplo } from '../services/exemplo.ts';
@@ -100,5 +100,21 @@ describe("pedido antigo em 'aprovado'", () => {
     assert.equal(db.get('pedidos', antigo.id)?.etapa, 'producao');
     assert.equal(db.get('pedidos', antigo.id)?.atualizadoEm, antigo.atualizadoEm);
     assert.throws(() => moverEtapa(antigo.id, 'producao', {}), /já está em "Em produção"/);
+  });
+});
+
+describe('custo fixo do MEI (decisão 110)', () => {
+  beforeEach(() => db.resetar());
+
+  it('o antigo padrão (R$ 82,05) vira 0 ao abrir, no aparelho e vindo da nuvem; um valor digitado fica', () => {
+    const snap = db.snapshot();
+    const comFixos = (centavos: number) => ({ ...snap.config!, custos: { ...snap.config!.custos, custosFixosMensaisCentavos: centavos } });
+    db.aplicarSnapshot({ ...snap, config: comFixos(8205) });
+    assert.equal(db.config.custos.custosFixosMensaisCentavos, 0);
+    db.aplicarSnapshot({ ...snap, config: comFixos(12000) });
+    assert.equal(db.config.custos.custosFixosMensaisCentavos, 12000);
+    db.aplicarExternos([{ col: 'config', id: 'config', rec: comFixos(8205) as unknown as Base }]);
+    assert.equal(db.config.custos.custosFixosMensaisCentavos, 0);
+    assert.equal(db.config.empresa.nome, snap.config!.empresa.nome);
   });
 });

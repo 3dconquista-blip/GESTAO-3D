@@ -4,10 +4,19 @@ import type { Canal, ChaveMensagem, Config, Impressora, Novo } from './types.ts'
 /** Nome do app mostrado na interface. (Identificadores internos — banco, backup, cache — continuam 'octa'.) */
 export const NOME_APP = '3D gestão';
 
-/** Ajusta configurações gravadas por versões antigas: o nome padrão da empresa era o antigo nome do app. */
+/** Antigo padrão dos custos fixos mensais: o DAS do MEI de 2026 (R$ 82,05). Saiu na decisão 110. */
+export const CUSTO_FIXO_MEI_CENTAVOS = 8205;
+
+/**
+ * Ajusta configurações gravadas por versões antigas (só em memória, como migracoes.ts): o nome padrão da empresa era
+ * o antigo nome do app, e os custos fixos mensais vinham com o DAS do MEI (decisão 110). Um valor digitado pelo dono
+ * (diferente do antigo padrão) fica como está.
+ */
 export function migrarConfig(c: Config): Config {
-  if (c.empresa?.nome === 'OCTA') return { ...c, empresa: { ...c.empresa, nome: NOME_APP } };
-  return c;
+  let out = c;
+  if (out.empresa?.nome === 'OCTA') out = { ...out, empresa: { ...out.empresa, nome: NOME_APP } };
+  if (out.custos?.custosFixosMensaisCentavos === CUSTO_FIXO_MEI_CENTAVOS) out = { ...out, custos: { ...out.custos, custosFixosMensaisCentavos: 0 } };
+  return out;
 }
 
 export const CANAIS_PADRAO: Canal[] = [
@@ -91,7 +100,7 @@ export function configPadrao(): Config {
       margemMinimaPct: 30,
       arredondamento: 'noventa',
       taxaCartaoPct: 3.5,
-      custosFixosMensaisCentavos: 8205,
+      custosFixosMensaisCentavos: 0,
     },
     canais: CANAIS_PADRAO.map((c) => ({ ...c })),
     pedidos: {

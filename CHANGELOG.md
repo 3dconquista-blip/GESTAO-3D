@@ -5,6 +5,27 @@ Formato: [vX.Y.Z] - AAAA-MM-DD
 
 ---
 
+## [v2.4.0] - 2026-11-06
+
+Nenhuma mudança regrava os dados que já existem (produtos, estoque, vendas, parceiros).
+
+### Adicionado
+- Tela "Outros custos e despesas" (Mais e menu lateral). Mostra o total do mês, mês a mês, com a lista e "Desfazer".
+  Ao lançar, há atalhos para entregador, gasolina, embalagem e anúncio. Tudo entra no lucro do mês
+- Cadastro de produto com a quantidade em Casa: as peças entram como "Estoque inicial (cadastro)", sem gastar filamento
+- "Novo produto" no botão "+"
+- Estoque > Produtos mostra peças e valor pelo preço de venda em Casa e nos parceiros (com o preço de cada parceiro),
+  com o custo em letra menor
+
+### Mudado
+- Sai o custo fixo do MEI (R$ 82,05) do lucro do mês. O padrão passa a ser R$ 0, e um valor digitado pelo dono continua
+- Gramas por peça saem do cadastro e ficam opcionais em "Mais detalhes". Sem elas, a produção não baixa filamento
+- "Gastos avulsos" passam a se chamar "Outros custos e despesas" no Início, nos relatórios e no CSV
+- No celular, o título da página não fica mais espremido pelos botões
+- Decisões 110 a 113; 375 testes
+
+---
+
 ## [v2.3.0] - 2026-11-02
 
 ### Mudado
